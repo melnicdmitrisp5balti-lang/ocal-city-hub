@@ -121,10 +121,14 @@ async function initDB() {
   try { await run("ALTER TABLE comments ADD COLUMN file_url TEXT"); } catch(e) {}
   try { await run("ALTER TABLE comments ADD COLUMN file_type TEXT"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
   const guestSetting = await q1("SELECT value FROM settings WHERE key='guests_allowed'");
   if (!guestSetting) await run("INSERT INTO settings (key,value) VALUES ('guests_allowed','1')");
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
   // Default settings
   try { const gs = await q1("SELECT value FROM settings WHERE key='guests_allowed'"); if(!gs) await run("INSERT INTO settings(key,value) VALUES('guests_allowed','1')"); } catch(e) {}
@@ -601,13 +605,14 @@ app.get('/api/admin/guests-setting', requireAdmin, async (req, res) => {
 // Set prefix for user
 app.post('/api/admin/users/:id/prefix', requireAdmin, async (req, res) => {
   try {
-    const { prefix } = req.body;
+    const { prefix, color } = req.body;
     const clean = (prefix || '').slice(0, 20);
+    const cleanColor = (color || '').slice(0, 30);
     const u = await q1("SELECT * FROM users WHERE id=?", [req.params.id]);
     if (!u) return res.status(404).json({ error: 'Не найден' });
-    await run("UPDATE users SET prefix=? WHERE id=?", [clean, req.params.id]);
-    await run("UPDATE sessions SET prefix=? WHERE username=?", [clean, u.username]);
-    io.emit('user_prefix_updated', { username: u.username, prefix: clean });
+    await run("UPDATE users SET prefix=?, prefix_color=? WHERE id=?", [clean, cleanColor, req.params.id]);
+    await run("UPDATE sessions SET prefix=?, prefix_color=? WHERE username=?", [clean, cleanColor, u.username]);
+    io.emit('user_prefix_updated', { username: u.username, prefix: clean, color: cleanColor });
     await addHistory(req.user.username, 'set_prefix', u.username, clean || '(удалён)');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -644,9 +649,9 @@ app.delete('/api/admin/history', requireAdmin, async (req, res) => {
 // Get users with prefix (public endpoint for chat display)
 app.get('/api/users/prefixes', requireAuth, async (req, res) => {
   try {
-    const rows = await q("SELECT username, prefix FROM users");
+    const rows = await q("SELECT username, prefix, prefix_color FROM users");
     const map = {};
-    rows.forEach(r => { map[r.username] = r.prefix || ''; });
+    rows.forEach(r => { map[r.username] = { prefix: r.prefix||'', color: r.prefix_color||'' }; });
     res.json(map);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

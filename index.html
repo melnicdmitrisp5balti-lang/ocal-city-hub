@@ -489,6 +489,7 @@ let editingTopicId = null;
 let createPanelOpen = true;
 let guestsAllowed = true;
 let prefixMap = {};
+let prefixColorMap = {};
 
 const EDITOR_ROLES = ['admin', 'editor'];
 
@@ -519,10 +520,14 @@ try {
   socket.on('chat_msg_deleted', id => { document.getElementById('chatmsg-'+id)?.remove(); });
   socket.on('guests_setting', d => { guestsAllowed = d.allowed; });
   socket.on('user_prefix_updated', d => {
+    prefixMap[d.username] = d.prefix || '';
+    prefixColorMap[d.username] = d.color || '';
     if (currentUser && d.username === currentUser.username) {
       currentUser.prefix = d.prefix;
       localStorage.setItem('user', JSON.stringify(currentUser));
+      updateHeaderBadge();
     }
+    renderTopics();
   });
   socket.on('role_updated', d => {
     if (currentUser && d.username === currentUser.username) {
@@ -558,8 +563,7 @@ function showApp() {
 
   const roleNames = { admin:'Администратор', editor:'Редактор', user:'Участник', guest:'Гость' };
   const roleColors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
-  document.getElementById('roleLabel').textContent = roleNames[currentUser.role] || currentUser.role;
-  document.getElementById('roleLabel').style.color = roleColors[currentUser.role] || 'var(--muted)';
+  updateHeaderBadge();
 
   if (currentUser.role === 'admin') document.getElementById('adminPanelBtn').classList.remove('hidden');
   if (EDITOR_ROLES.includes(currentUser.role)) document.getElementById('createPanel').classList.remove('hidden');
@@ -666,7 +670,11 @@ function renderTopics() {
       <button onclick="toggleCard('${t.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;transition:.2s" onmouseover="this.style.background='rgba(103,232,249,.03)'" onmouseout="this.style.background='none'">
         <span class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);opacity:.5;width:22px;flex-shrink:0">${String(idx+1).padStart(2,'0')}</span>
         <span class="syne" style="flex:1;font-size:14px;font-weight:700;color:var(--text);line-height:1.3;text-align:left">${hlText(t.title,q)}</span>
-        <span style="font-size:10px;color:var(--muted);flex-shrink:0;white-space:nowrap">${t.created_at}</span>
+        <span style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          ${(()=>{const p=prefixMap[t.author];const pc=prefixColorMap[t.author];if(p){const col=pc||'var(--violet)';return `<span style="font-size:9px;padding:1px 6px;border-radius:4px;font-family:'Syne',sans-serif;font-weight:700;background:${col}22;color:${col};border:1px solid ${col}66">${esc(p)}</span>`;}return '';})()}
+          <span style="font-size:11px;color:var(--cyan);font-family:'Syne',sans-serif;font-weight:700">${esc(t.author)}</span>
+          <span style="font-size:10px;color:var(--muted);white-space:nowrap">${t.created_at}</span>
+        </span>
         ${editBtn}${delBtn}
         <svg class="chevron" id="chev-${t.id}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
@@ -983,8 +991,9 @@ async function loadUsers(){
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;color:var(--muted);min-width:36px">Префикс:</span>
-            <input class="fi" id="prefix-inp-${u.id}" value="${esc(prefixVal)}" placeholder="например: 🔥 Босс" style="font-size:11px;padding:4px 8px;height:28px;flex:1">
-            <button onclick="savePrefix(${u.id})" class="btn btn-violet btn-xs">Сохранить</button>
+            <input class="fi" id="prefix-inp-${u.id}" value="${esc(prefixVal)}" placeholder="🔥 Босс" style="font-size:11px;padding:4px 8px;height:28px;flex:1">
+            <input type="color" id="prefix-col-${u.id}" value="${u.prefix_color||'#a78bfa'}" title="Цвет префикса" style="width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;padding:2px;flex-shrink:0">
+            <button onclick="savePrefix(${u.id})" class="btn btn-violet btn-xs">Сохр.</button>
           </div>
         </div>
       </div>`;
@@ -1056,12 +1065,51 @@ async function changePanelPw(){
 async function loadPrefixMap() {
   try {
     const data = await api('GET', '/api/users/prefixes');
-    prefixMap = data;
+    prefixMap = {};
+    prefixColorMap = {};
+    Object.entries(data).forEach(([u, info]) => {
+      if (typeof info === 'object') {
+        prefixMap[u] = info.prefix || '';
+        prefixColorMap[u] = info.color || '';
+      } else {
+        prefixMap[u] = info || '';
+      }
+    });
+    updateHeaderBadge();
   } catch(e) {}
 }
 
+function updateHeaderBadge() {
+  if (!currentUser) return;
+  const rl = document.getElementById('roleLabel');
+  if (!rl) return;
+  const roleNames = { admin:'Администратор', editor:'Редактор', user:'Участник', guest:'Гость' };
+  const roleColors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
+  const prefix = prefixMap[currentUser.username];
+  const prefixColor = prefixColorMap[currentUser.username];
+  if (prefix) {
+    const col = prefixColor || 'var(--violet)';
+    rl.textContent = prefix;
+    rl.style.color = col;
+    rl.style.background = col.startsWith('#') || col.startsWith('rgb') ? col + '22' : 'rgba(167,139,250,.12)';
+    rl.style.padding = '1px 7px';
+    rl.style.borderRadius = '5px';
+    rl.style.border = '1px solid ' + (col.startsWith('#') || col.startsWith('rgb') ? col + '66' : 'rgba(167,139,250,.3)');
+    rl.style.fontSize = '10px';
+    rl.style.fontFamily = "'Syne',sans-serif";
+    rl.style.fontWeight = '700';
+  } else {
+    rl.textContent = roleNames[currentUser.role] || currentUser.role;
+    rl.style.color = roleColors[currentUser.role] || 'var(--muted)';
+    rl.style.background = '';
+    rl.style.padding = '';
+    rl.style.borderRadius = '';
+    rl.style.border = '';
+  }
+}
+
 function getPrefix(username) {
-  return prefixMap[username] || '';
+  return { text: prefixMap[username] || '', color: prefixColorMap[username] || '' };
 }
 
 // ── Admin: guests toggle ──────────────────────────────────────────────────────
@@ -1103,9 +1151,11 @@ async function clearHistory() {
 // ── Admin: prefix ─────────────────────────────────────────────────────────────
 async function savePrefix(id) {
   const val = document.getElementById('prefix-inp-'+id)?.value || '';
+  const col = document.getElementById('prefix-col-'+id)?.value || '';
   try {
-    await api('POST', '/api/admin/users/'+id+'/prefix', { prefix: val });
+    await api('POST', '/api/admin/users/'+id+'/prefix', { prefix: val, color: col });
     await loadPrefixMap();
+    renderTopics();
     showToast('Префикс сохранён ✦');
   } catch(e) { showToast(e.message, true); }
 }
@@ -1349,8 +1399,9 @@ function appendChatMsg(msg) {
     inner = `<div class="chat-bubble">${esc(msg.text||'')}</div>`;
   }
 
-  const prefix = getPrefix(msg.author);
-  const prefixHtml = prefix ? `<span style="font-size:9px;background:rgba(167,139,250,.15);color:var(--violet);border:1px solid rgba(167,139,250,.3);border-radius:4px;padding:1px 5px;margin-right:4px;font-family:'Syne',sans-serif;font-weight:700">${esc(prefix)}</span>` : '';
+  const pfx = getPrefix(msg.author);
+  const pfxCol = pfx.color || 'var(--violet)';
+  const prefixHtml = pfx.text ? `<span style="font-size:9px;background:${pfxCol}22;color:${pfxCol};border:1px solid ${pfxCol}66;border-radius:4px;padding:1px 5px;margin-right:2px;font-family:'Syne',sans-serif;font-weight:700">${esc(pfx.text)}</span>` : '';
   const isAdminUser = currentUser?.role === 'admin';
   const delBtn = isAdminUser ? `<button onclick="deleteChatMsg('${msg.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;border-radius:4px;opacity:0;transition:.15s" class="chat-del-btn" onmouseover="this.style.color='var(--rose)';this.style.opacity='1'" onmouseout="this.style.color='var(--muted)';this.style.opacity='0'"><svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>` : '';
   div.id = 'chatmsg-' + msg.id;
