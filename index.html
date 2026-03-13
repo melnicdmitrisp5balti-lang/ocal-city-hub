@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Local City Hub</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='9' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='36' y2='36' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2367e8f9'/%3E%3Cstop offset='1' stop-color='%232dd4bf'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M26 28V10a2 2 0 00-2-2H12a2 2 0 00-2 2v18m16 0h2m-2 0h-6m-10 0H8m2 0h6M14 13h1m-1 4h1m6-4h1m-1 4h1m-6 11v-6a1 1 0 011-1h2a1 1 0 011 1v6m-4 0h4' stroke='%23080b12' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="/socket.io/socket.io.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
@@ -137,6 +138,38 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .divider{height:1px;background:var(--border);margin:14px 0}
 .sec-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;background:linear-gradient(135deg,#e2e8f0 30%,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .pill{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:20px;padding:3px 12px}
+
+/* ── Chat ─────────────────────────────────────────────────────────────────── */
+.chat-fab{position:fixed;bottom:28px;right:28px;z-index:70;width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,var(--cyan),var(--teal));border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 24px rgba(103,232,249,.4);transition:.25s;flex-shrink:0}
+.chat-fab:hover{transform:scale(1.09);box-shadow:0 6px 36px rgba(103,232,249,.55)}
+.chat-fab .unread{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--rose);border:2px solid var(--bg);font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif}
+.chat-win{position:fixed;bottom:94px;right:28px;z-index:70;width:min(360px,calc(100vw - 40px));height:min(540px,calc(100vh - 130px));background:rgba(6,9,16,.97);border:1px solid var(--border2);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden;transform:scale(.92) translateY(20px);opacity:0;pointer-events:none;transition:.28s cubic-bezier(.22,.68,0,1.2);transform-origin:bottom right}
+.chat-win.open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:82%;display:flex;flex-direction:column;gap:2px}
+.chat-msg.me{align-self:flex-end;align-items:flex-end}
+.chat-msg.them{align-self:flex-start;align-items:flex-start}
+.chat-bubble{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.chat-msg.me .chat-bubble{background:rgba(103,232,249,.15);border:1px solid rgba(103,232,249,.25);color:var(--text);border-bottom-right-radius:4px}
+.chat-msg.them .chat-bubble{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px}
+.chat-meta{font-size:10px;color:var(--muted);font-family:'Syne',sans-serif;padding:0 4px}
+.chat-input-bar{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;background:rgba(6,9,16,.98)}
+.chat-ta{flex:1;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;resize:none;max-height:100px;min-height:38px;transition:.2s;line-height:1.5}
+.chat-ta:focus{border-color:rgba(103,232,249,.38)}
+.chat-ta::placeholder{color:var(--muted)}
+.chat-icon-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0}
+.chat-icon-btn:hover{border-color:rgba(103,232,249,.35);color:var(--cyan);background:var(--cyan-dim)}
+.chat-icon-btn.recording{border-color:rgba(251,113,133,.5);color:var(--rose);background:rgba(251,113,133,.1);animation:pulse-rec .9s ease-in-out infinite}
+@keyframes pulse-rec{0%,100%{box-shadow:0 0 0 0 rgba(251,113,133,.4)}50%{box-shadow:0 0 0 6px rgba(251,113,133,0)}}
+.voice-bubble{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;min-width:180px}
+.voice-play{width:30px;height:30px;border-radius:50%;background:rgba(103,232,249,.18);border:1px solid rgba(103,232,249,.3);color:var(--cyan);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s}
+.voice-play:hover{background:rgba(103,232,249,.28)}
+.voice-waveform{flex:1;height:28px;display:flex;align-items:center;gap:2px}
+.voice-waveform span{display:inline-block;width:3px;border-radius:2px;background:rgba(103,232,249,.4);transition:.15s}
+.voice-waveform span.active{background:var(--cyan)}
+.voice-dur{font-size:11px;color:var(--muted);font-family:'Syne',sans-serif;flex-shrink:0;min-width:32px}
+.chat-img-preview{max-width:100%;max-height:180px;border-radius:10px;cursor:pointer;border:1px solid var(--border)}
+.rec-timer{font-size:11px;color:var(--rose);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.04em;align-self:center}
 </style>
 </head>
 <body>
@@ -945,7 +978,345 @@ function showToast(msg,err=false){
   t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),3200);
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CHAT
+// ══════════════════════════════════════════════════════════════════════════════
+let chatOpen = false;
+let chatAttach = null; // {base64, type, name}
+let mediaRecorder = null;
+let audioChunks = [];
+let recInterval = null;
+let recSeconds = 0;
+let chatUnreadCount = 0;
+
+// Socket chat events
+try {
+  socket.on('chat_message', msg => {
+    appendChatMsg(msg);
+    if (!chatOpen) {
+      chatUnreadCount++;
+      const el = document.getElementById('chatUnread');
+      el.textContent = chatUnreadCount > 9 ? '9+' : chatUnreadCount;
+      el.classList.remove('hidden');
+    }
+  });
+} catch(e) {}
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatWin').classList.toggle('open', chatOpen);
+  if (chatOpen) {
+    chatUnreadCount = 0;
+    document.getElementById('chatUnread').classList.add('hidden');
+    setTimeout(() => {
+      const msgs = document.getElementById('chatMsgs');
+      msgs.scrollTop = msgs.scrollHeight;
+      document.getElementById('chatInput').focus();
+    }, 100);
+  }
+}
+
+function autoResizeChatTa(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+}
+
+async function sendChatMessage() {
+  const inp = document.getElementById('chatInput');
+  const text = inp.value.trim();
+  if (!text && !chatAttach) return;
+  if (!currentUser) return;
+
+  let file_url = null, file_type = null;
+  if (chatAttach) {
+    try {
+      showToast('Загружаю...');
+      const result = await uploadFile(chatAttach.base64, chatAttach.mimeType);
+      file_url = result.url;
+      file_type = result.type;
+    } catch(e) { showToast(e.message, true); return; }
+  }
+
+  const msg = {
+    id: genChatId(),
+    author: currentUser.username,
+    text,
+    file_url,
+    file_type,
+    voice_url: null,
+    voice_duration: null,
+    created_at: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
+  };
+
+  try {
+    await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-token':token||''},
+      body: JSON.stringify(msg)
+    });
+  } catch(e) {}
+
+  inp.value = ''; inp.style.height = 'auto';
+  clearChatAttach();
+}
+
+function genChatId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+}
+
+function handleChatFile(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    chatAttach = { base64: reader.result.split(',')[1], mimeType: file.type, name: file.name };
+    const prev = document.getElementById('chatAttachPreview');
+    document.getElementById('chatAttachName').textContent = '📷 ' + file.name;
+    prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function clearChatAttach() {
+  chatAttach = null;
+  document.getElementById('chatAttachPreview').style.display = 'none';
+}
+
+// ── Voice recording ───────────────────────────────────────────────────────────
+async function toggleVoiceRecord() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+      await sendVoiceMessage(blob, recSeconds);
+    };
+    mediaRecorder.start(100);
+    recSeconds = 0;
+    document.getElementById('voiceBtn').classList.add('recording');
+    document.getElementById('recTimerRow').style.display = 'block';
+    recInterval = setInterval(() => {
+      recSeconds++;
+      const m = Math.floor(recSeconds / 60), s = recSeconds % 60;
+      document.getElementById('recTimerLabel').textContent = `● ${m}:${String(s).padStart(2,'0')}`;
+      if (recSeconds >= 120) stopRecording(); // макс 2 мин
+    }, 1000);
+  } catch(e) {
+    showToast('Нет доступа к микрофону', true);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  clearInterval(recInterval);
+  document.getElementById('voiceBtn').classList.remove('recording');
+  document.getElementById('recTimerRow').style.display = 'none';
+}
+
+async function sendVoiceMessage(blob, duration) {
+  if (!currentUser) return;
+  showToast('Отправляю голосовое...');
+  try {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      const result = await uploadFile(base64, 'audio/webm');
+      const msg = {
+        id: genChatId(),
+        author: currentUser.username,
+        text: '',
+        file_url: null,
+        file_type: null,
+        voice_url: result.url,
+        voice_duration: duration,
+        created_at: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
+      };
+      await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','x-token':token||''},
+        body: JSON.stringify(msg)
+      });
+      showToast('Голосовое отправлено ✦');
+    };
+    reader.readAsDataURL(blob);
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Render message ────────────────────────────────────────────────────────────
+function appendChatMsg(msg) {
+  const box = document.getElementById('chatMsgs'); if (!box) return;
+  const isMe = msg.author === currentUser?.username;
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + (isMe ? 'me' : 'them');
+  div.id = 'cm2-' + msg.id;
+
+  let inner = '';
+
+  if (msg.voice_url) {
+    const dur = msg.voice_duration || 0;
+    const m = Math.floor(dur/60), s = dur%60;
+    const durStr = `${m}:${String(s).padStart(2,'0')}`;
+    const bars = Array.from({length:20}, (_,i) => {
+      const h = 6 + Math.floor(Math.sin(i*0.8+1)*8 + Math.random()*10);
+      return `<span style="height:${h}px" id="vbar-${msg.id}-${i}"></span>`;
+    }).join('');
+    inner = `<div class="chat-bubble voice-bubble ${isMe?'':''}">
+      <button class="voice-play" onclick="playVoice('${msg.id}','${msg.voice_url}',${dur},this)" title="Воспроизвести">
+        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <div class="voice-waveform" id="vwave-${msg.id}">${bars}</div>
+      <span class="voice-dur" id="vdur-${msg.id}">${durStr}</span>
+    </div>`;
+  } else if (msg.file_url && msg.file_type === 'image') {
+    inner = `<div class="chat-bubble" style="padding:6px">
+      <img src="${esc(msg.file_url)}" class="chat-img-preview" onclick="window.open('${esc(msg.file_url)}','_blank')">
+      ${msg.text ? `<div style="margin-top:5px;font-size:13px">${esc(msg.text)}</div>` : ''}
+    </div>`;
+  } else {
+    inner = `<div class="chat-bubble">${esc(msg.text||'')}</div>`;
+  }
+
+  div.innerHTML = `
+    <div style="font-size:10px;color:var(--muted);margin-bottom:2px;font-family:'Syne',sans-serif;font-weight:600;padding:0 4px">${isMe?'':esc(msg.author)}</div>
+    ${inner}
+    <div class="chat-meta">${msg.created_at}</div>`;
+
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Voice playback ────────────────────────────────────────────────────────────
+const voicePlayers = {};
+function playVoice(msgId, url, totalDur, btn) {
+  if (voicePlayers[msgId]) {
+    const p = voicePlayers[msgId];
+    if (!p.paused) { p.pause(); setVoiceBtn(btn, false); return; }
+    p.play(); setVoiceBtn(btn, true);
+    animateVoice(msgId, p, totalDur);
+    return;
+  }
+  const audio = new Audio(url);
+  voicePlayers[msgId] = audio;
+  audio.play();
+  setVoiceBtn(btn, true);
+  animateVoice(msgId, audio, totalDur);
+  audio.onended = () => {
+    setVoiceBtn(btn, false);
+    resetVoiceWave(msgId, totalDur);
+  };
+}
+function setVoiceBtn(btn, playing) {
+  btn.innerHTML = playing
+    ? '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+    : '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+}
+function animateVoice(msgId, audio, totalDur) {
+  const wave = document.getElementById('vwave-'+msgId);
+  const durEl = document.getElementById('vdur-'+msgId);
+  const bars = wave ? Array.from(wave.querySelectorAll('span')) : [];
+  const total = totalDur || 1;
+  const tick = setInterval(() => {
+    if (!audio || audio.paused || audio.ended) { clearInterval(tick); return; }
+    const progress = audio.currentTime / total;
+    const activeBars = Math.floor(progress * bars.length);
+    bars.forEach((b,i) => b.classList.toggle('active', i < activeBars));
+    const rem = Math.max(0, total - Math.floor(audio.currentTime));
+    const m = Math.floor(rem/60), s = rem%60;
+    if (durEl) durEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+  }, 100);
+}
+function resetVoiceWave(msgId, totalDur) {
+  const wave = document.getElementById('vwave-'+msgId);
+  const durEl = document.getElementById('vdur-'+msgId);
+  if (wave) wave.querySelectorAll('span').forEach(b => b.classList.remove('active'));
+  if (durEl) {
+    const m = Math.floor(totalDur/60), s = totalDur%60;
+    durEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+  }
+}
+
+async function loadChatHistory() {
+  try {
+    const r = await fetch('/api/chat', { headers: {'x-token': token||''} });
+    if (!r.ok) return;
+    const msgs = await r.json();
+    msgs.forEach(m => appendChatMsg(m));
+  } catch(e) {}
+}
+
 init();
+loadChatHistory();
 </script>
+
+<!-- ══════════════════════════ CHAT ═══════════════════════════════════════ -->
+<button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Чат">
+  <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+  <span class="unread hidden" id="chatUnread">0</span>
+</button>
+
+<div class="chat-win" id="chatWin">
+  <!-- Header -->
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="logo" style="width:32px;height:32px">
+        <svg width="15" height="15" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div>
+        <div class="syne" style="font-size:13px;font-weight:800;color:var(--text)">Общий чат</div>
+        <div id="chatOnline" style="font-size:10px;color:var(--teal)">● онлайн</div>
+      </div>
+    </div>
+    <button onclick="toggleChat()" class="ibtn"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+  </div>
+
+  <!-- Messages -->
+  <div class="chat-msgs" id="chatMsgs"></div>
+
+  <!-- Attach preview -->
+  <div id="chatAttachPreview" style="display:none;padding:8px 12px;border-top:1px solid var(--border);background:rgba(6,9,16,.98)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span id="chatAttachName" style="font-size:12px;color:var(--cyan)"></span>
+      <button onclick="clearChatAttach()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button>
+    </div>
+  </div>
+
+  <!-- Input bar -->
+  <div class="chat-input-bar">
+    <label class="chat-icon-btn" title="Прикрепить фото">
+      <input type="file" accept="image/*" style="display:none" onchange="handleChatFile(event)">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </label>
+    <textarea class="chat-ta" id="chatInput" placeholder="Сообщение..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResizeChatTa(this)"></textarea>
+    <button class="chat-icon-btn" id="voiceBtn" title="Голосовое" onclick="toggleVoiceRecord()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"/></svg>
+    </button>
+    <button class="chat-icon-btn" id="chatSendBtn" onclick="sendChatMessage()" style="background:rgba(103,232,249,.12);border-color:rgba(103,232,249,.3);color:var(--cyan)" title="Отправить">
+      <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+    </button>
+  </div>
+  <div id="recTimerRow" style="display:none;padding:4px 16px 10px;border-top:none">
+    <span class="rec-timer" id="recTimerLabel">● 0:00</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:8px">Нажмите микрофон ещё раз чтобы остановить</span>
+  </div>
+</div>
+
 </body>
 </html>

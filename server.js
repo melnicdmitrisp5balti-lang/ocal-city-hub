@@ -94,6 +94,16 @@ async function initDB() {
       detail     TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id         TEXT PRIMARY KEY,
+      author     TEXT NOT NULL,
+      text       TEXT DEFAULT '',
+      file_url   TEXT,
+      file_type  TEXT,
+      voice_url  TEXT,
+      voice_duration INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS sessions (
       token      TEXT PRIMARY KEY,
       user_id    INTEGER,
@@ -468,6 +478,34 @@ app.delete('/api/comments/:id', requireAdmin, async (req, res) => {
     io.emit('comment_deleted', req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CHAT
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/chat', requireAuth, async (req, res) => {
+  try {
+    const rows = await q("SELECT * FROM chat_messages ORDER BY created_at ASC LIMIT 200");
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/chat', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role === 'guest') return res.status(403).json({ error: 'Гости не могут писать в чат' });
+    const { id, text, file_url, file_type, voice_url, voice_duration, created_at } = req.body;
+    if (!text?.trim() && !file_url && !voice_url) return res.status(400).json({ error: 'Пустое сообщение' });
+    const msgId = id || genId();
+    const now = created_at || new Date().toLocaleString('ru-RU');
+    await run(
+      "INSERT INTO chat_messages (id,author,text,file_url,file_type,voice_url,voice_duration,created_at) VALUES (?,?,?,?,?,?,?,?)",
+      [msgId, req.user.username, text?.trim()||'', file_url||null, file_type||null, voice_url||null, voice_duration||null, now]
+    );
+    const msg = { id: msgId, author: req.user.username, text: text?.trim()||'', file_url: file_url||null, file_type: file_type||null, voice_url: voice_url||null, voice_duration: voice_duration||null, created_at: now };
+    io.emit('chat_message', msg);
+    res.json(msg);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Main page ─────────────────────────────────────────────────────────────────
