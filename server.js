@@ -60,6 +60,7 @@ async function initDB() {
       username      TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role          TEXT DEFAULT 'user',
+      prefix        TEXT DEFAULT '',
       created_at    TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS invite_codes (
@@ -109,6 +110,7 @@ async function initDB() {
       user_id    INTEGER,
       username   TEXT NOT NULL,
       role       TEXT NOT NULL,
+      prefix     TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
@@ -118,6 +120,14 @@ async function initDB() {
   // Добавляем колонки если их нет (для существующих БД)
   try { await run("ALTER TABLE comments ADD COLUMN file_url TEXT"); } catch(e) {}
   try { await run("ALTER TABLE comments ADD COLUMN file_type TEXT"); } catch(e) {}
+  try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  const guestSetting = await q1("SELECT value FROM settings WHERE key='guests_allowed'");
+  if (!guestSetting) await run("INSERT INTO settings (key,value) VALUES ('guests_allowed','1')");
+  try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  // Default settings
+  try { const gs = await q1("SELECT value FROM settings WHERE key='guests_allowed'"); if(!gs) await run("INSERT INTO settings(key,value) VALUES('guests_allowed','1')"); } catch(e) {}
 
   const pp = await q1("SELECT value FROM settings WHERE key='panel_password'");
   if (!pp) await run("INSERT INTO settings (key,value) VALUES ('panel_password',?)", [hashPw('panel123')]);
@@ -146,15 +156,15 @@ async function setSetting(key, val) {
 // ── Sessions ──────────────────────────────────────────────────────────────────
 async function createSession(user) {
   const token = crypto.randomBytes(32).toString('hex');
-  await run("INSERT OR REPLACE INTO sessions (token,user_id,username,role) VALUES (?,?,?,?)",
-    [token, user.id || null, user.username, user.role]);
+  await run("INSERT OR REPLACE INTO sessions (token,user_id,username,role,prefix) VALUES (?,?,?,?,?)",
+    [token, user.id || null, user.username, user.role, user.prefix || '']);
   return token;
 }
 async function getSession(token) {
   if (!token) return null;
   const row = await q1("SELECT * FROM sessions WHERE token=?", [token]);
   if (!row) return null;
-  return { userId: row.user_id, username: row.username, role: row.role };
+  return { userId: row.user_id, username: row.username, role: row.role, prefix: row.prefix || '' };
 }
 async function deleteSession(token) {
   await run("DELETE FROM sessions WHERE token=?", [token]);
@@ -263,10 +273,12 @@ app.post('/api/panel/auth', requireAdmin, async (req, res) => {
 
 app.post('/api/guest', async (req, res) => {
   try {
+    const allowed = await getSetting('guests_allowed');
+    if (allowed === '0') return res.status(403).json({ error: 'Вход для гостей отключён администратором' });
     const guestName = 'Гость_' + Math.random().toString(36).slice(2, 6).toUpperCase();
-    const token = await createSession({ id: null, username: guestName, role: 'guest' });
+    const token = await createSession({ id: null, username: guestName, role: 'guest', prefix: '' });
     await addHistory(guestName, 'guest_login', null, null);
-    res.json({ token, username: guestName, role: 'guest' });
+    res.json({ token, username: guestName, role: 'guest', prefix: '' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -286,7 +298,7 @@ app.post('/api/register', async (req, res) => {
     const user = await q1("SELECT * FROM users WHERE id=?", [insertId]);
     const token = await createSession(user);
     await addHistory(username.trim(), 'register', null, `Код: ${code.toUpperCase()}`);
-    res.json({ token, username: user.username, role: user.role });
+    res.json({ token, username: user.username, role: user.role, prefix: user.prefix || '' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -298,7 +310,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     const token = await createSession(user);
     await addHistory(user.username, 'login', null, null);
-    res.json({ token, username: user.username, role: user.role });
+    res.json({ token, username: user.username, role: user.role, prefix: user.prefix || '' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -308,7 +320,7 @@ app.post('/api/logout', requireAuth, async (req, res) => {
 });
 
 app.get('/api/me', requireAuth, (req, res) => {
-  res.json({ username: req.user.username, role: req.user.role });
+  res.json({ username: req.user.username, role: req.user.role, prefix: req.user.prefix || '' });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -352,7 +364,7 @@ app.get('/api/admin/invites', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
-  try { res.json(await q("SELECT id,username,role,created_at FROM users ORDER BY created_at DESC")); }
+  try { res.json(await q("SELECT id,username,role,prefix,created_at FROM users ORDER BY created_at DESC")); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -482,6 +494,65 @@ app.delete('/api/comments/:id', requireAdmin, async (req, res) => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  EXTRA ADMIN ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.post('/api/admin/guests-allowed', requireAdmin, async (req, res) => {
+  try {
+    const { allowed } = req.body;
+    await setSetting('guests_allowed', allowed ? '1' : '0');
+    await addHistory(req.user.username, 'guests_toggle', null, allowed ? 'Разрешены' : 'Запрещены');
+    io.emit('settings_update', { guests_allowed: allowed ? '1' : '0' });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/settings', requireAdmin, async (req, res) => {
+  try {
+    const ga = await getSetting('guests_allowed');
+    res.json({ guests_allowed: ga !== '0' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/users/:id/prefix', requireAdmin, async (req, res) => {
+  try {
+    const { prefix } = req.body;
+    const clean = (prefix || '').slice(0, 20);
+    const u = await q1("SELECT * FROM users WHERE id=?", [req.params.id]);
+    if (!u) return res.status(404).json({ error: 'Не найден' });
+    await run("UPDATE users SET prefix=? WHERE id=?", [clean, req.params.id]);
+    await run("UPDATE sessions SET prefix=? WHERE username=?", [clean, u.username]);
+    io.emit('user_updated', { username: u.username, role: u.role, prefix: clean });
+    await addHistory(req.user.username, 'set_prefix', u.username, clean || '(убран)');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/chat', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM chat_messages");
+    await addHistory(req.user.username, 'clear_chat', null, null);
+    io.emit('chat_cleared');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/chat/:id', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM chat_messages WHERE id=?", [req.params.id]);
+    io.emit('chat_msg_deleted', req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/history', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM history");
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  CHAT
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/chat', requireAuth, async (req, res) => {
@@ -505,6 +576,78 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const msg = { id: msgId, author: req.user.username, text: text?.trim()||'', file_url: file_url||null, file_type: file_type||null, voice_url: voice_url||null, voice_duration: voice_duration||null, created_at: now };
     io.emit('chat_message', msg);
     res.json(msg);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// Toggle guests
+app.post('/api/admin/guests-toggle', requireAdmin, async (req, res) => {
+  try {
+    const { allowed } = req.body;
+    await setSetting('guests_allowed', allowed ? '1' : '0');
+    io.emit('guests_setting', { allowed: allowed ? true : false });
+    await addHistory(req.user.username, 'guests_toggle', null, allowed ? 'разрешены' : 'запрещены');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/guests-setting', requireAdmin, async (req, res) => {
+  try {
+    const val = await getSetting('guests_allowed');
+    res.json({ allowed: val !== '0' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Set prefix for user
+app.post('/api/admin/users/:id/prefix', requireAdmin, async (req, res) => {
+  try {
+    const { prefix } = req.body;
+    const clean = (prefix || '').slice(0, 20);
+    const u = await q1("SELECT * FROM users WHERE id=?", [req.params.id]);
+    if (!u) return res.status(404).json({ error: 'Не найден' });
+    await run("UPDATE users SET prefix=? WHERE id=?", [clean, req.params.id]);
+    await run("UPDATE sessions SET prefix=? WHERE username=?", [clean, u.username]);
+    io.emit('user_prefix_updated', { username: u.username, prefix: clean });
+    await addHistory(req.user.username, 'set_prefix', u.username, clean || '(удалён)');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Clear chat history
+app.delete('/api/admin/chat', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM chat_messages");
+    io.emit('chat_cleared');
+    await addHistory(req.user.username, 'clear_chat', null, null);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete single chat message
+app.delete('/api/admin/chat/:id', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM chat_messages WHERE id=?", [req.params.id]);
+    io.emit('chat_msg_deleted', req.params.id);
+    await addHistory(req.user.username, 'delete_chat_msg', null, null);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Clear history log
+app.delete('/api/admin/history', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM history");
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get users with prefix (public endpoint for chat display)
+app.get('/api/users/prefixes', requireAuth, async (req, res) => {
+  try {
+    const rows = await q("SELECT username, prefix FROM users");
+    const map = {};
+    rows.forEach(r => { map[r.username] = r.prefix || ''; });
+    res.json(map);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

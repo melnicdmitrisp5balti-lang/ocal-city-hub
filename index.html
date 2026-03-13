@@ -356,8 +356,54 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
         <div id="historyList" style="display:flex;flex-direction:column;gap:5px"></div>
       </div>
 
+      <!-- MODERATION -->
+      <div id="tabModeration" class="hidden">
+        <!-- Guests toggle -->
+        <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">👥 Гостевой вход</div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--soft)">Разрешить вход как гость</span>
+            <button id="guestToggleBtn" onclick="toggleGuests()" class="btn btn-ghost btn-sm">...</button>
+          </div>
+        </div>
+        <!-- Clear chat -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🗑 Очистить чат</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить все сообщения из общего чата</div>
+          <button onclick="clearChat()" class="btn btn-rose btn-full">Очистить историю чата</button>
+        </div>
+        <!-- Clear history log -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">📋 История действий</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Очистить журнал действий администратора</div>
+          <button onclick="clearHistoryLog()" class="btn btn-rose btn-full">Очистить историю</button>
+        </div>
+      </div>
+
       <!-- SETTINGS / PASSWORDS -->
       <div id="tabSettings" class="hidden">
+        <!-- Guest toggle -->
+        <div style="background:rgba(45,212,191,.04);border:1px solid rgba(45,212,191,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">👤 Гостевой доступ</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Разрешить или запретить вход гостям</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="setGuestsAllowed(true)" id="btnGuestAllow" class="btn btn-teal btn-sm" style="flex:1;justify-content:center">✓ Разрешить</button>
+            <button onclick="setGuestsAllowed(false)" id="btnGuestDeny" class="btn btn-rose btn-sm" style="flex:1;justify-content:center">✕ Запретить</button>
+          </div>
+          <div id="guestStatusLabel" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center"></div>
+        </div>
+        <!-- Clear chat -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🗑️ Очистить чат</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить все сообщения в общем чате</div>
+          <button onclick="clearChat()" class="btn btn-rose btn-full">Очистить историю чата</button>
+        </div>
+        <!-- Clear history log -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🗑️ Очистить историю действий</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить весь лог действий</div>
+          <button onclick="clearHistory()" class="btn btn-rose btn-full">Очистить историю</button>
+        </div>
         <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.13);border-radius:13px;padding:17px;margin-bottom:14px">
           <div class="syne" style="font-size:10px;font-weight:700;color:var(--cyan);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🌐 Пароль сайта</div>
           <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Пароль для входа под аккаунтом <b style="color:var(--text)">admin</b></div>
@@ -441,6 +487,8 @@ let blockCounter = 0;
 let editBlockCounter = 0;
 let editingTopicId = null;
 let createPanelOpen = true;
+let guestsAllowed = true;
+let prefixMap = {};
 
 const EDITOR_ROLES = ['admin', 'editor'];
 
@@ -453,6 +501,36 @@ try {
   socket.on('topic_deleted', id => { topics=topics.filter(t=>t.id!==id); renderTopics(); });
   socket.on('comment_added',  c  => addCommentDOM(c));
   socket.on('comment_deleted',id => document.getElementById('cm-'+id)?.remove());
+  socket.on('settings_update', s => { if(s.guests_allowed !== undefined) { /* handled globally */ } });
+  socket.on('user_updated', u => {
+    if (currentUser && currentUser.username === u.username) {
+      currentUser.role = u.role; currentUser.prefix = u.prefix || '';
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      // update role display
+      const roleNames={admin:'Администратор',editor:'Редактор',user:'Участник',guest:'Гость'};
+      const roleColors={admin:'var(--amber)',editor:'var(--violet)',user:'var(--cyan)',guest:'var(--muted)'};
+      const rl=document.getElementById('roleLabel');
+      if(rl){rl.textContent=roleNames[u.role]||u.role;rl.style.color=roleColors[u.role]||'var(--muted)';}
+    }
+  });
+  socket.on('chat_cleared', () => { document.getElementById('chatMsgs').innerHTML=''; });
+  socket.on('chat_msg_deleted', id => { document.getElementById('cm2-'+id)?.remove(); });
+  socket.on('chat_cleared', () => { document.getElementById('chatMsgs').innerHTML = ''; showToast('Чат очищен'); });
+  socket.on('chat_msg_deleted', id => { document.getElementById('chatmsg-'+id)?.remove(); });
+  socket.on('guests_setting', d => { guestsAllowed = d.allowed; });
+  socket.on('user_prefix_updated', d => {
+    if (currentUser && d.username === currentUser.username) {
+      currentUser.prefix = d.prefix;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+    }
+  });
+  socket.on('role_updated', d => {
+    if (currentUser && d.username === currentUser.username) {
+      currentUser.role = d.role;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      location.reload();
+    }
+  });
 } catch(e){}
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -469,7 +547,7 @@ async function api(method, url, body) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  if (token && currentUser) { showApp(); await loadTopics(); }
+  if (token && currentUser) { showApp(); await loadTopics(); await loadPrefixMap(); }
   else document.getElementById('authModal').classList.remove('hidden');
 }
 
@@ -529,7 +607,7 @@ async function doLogout() {
 }
 
 function saveSession(d) {
-  token=d.token; currentUser={username:d.username,role:d.role};
+  token=d.token; currentUser={username:d.username,role:d.role,prefix:d.prefix||''};
   localStorage.setItem('token',token); localStorage.setItem('user',JSON.stringify(currentUser));
 }
 
@@ -838,18 +916,20 @@ async function verifyPanel(){
     await api('POST','/api/panel/auth',{password:document.getElementById('panelPwInput').value});
     document.getElementById('panelAuthBox').classList.add('hidden');
     document.getElementById('panelContent').classList.remove('hidden');
-    loadInvites(); loadHistory();
+    loadInvites(); loadHistory(); loadModerationSettings();
   }catch(e){document.getElementById('panelErr').classList.remove('hidden');}
 }
 
 function switchPanelTab(t){
-  ['invites','users','history','settings'].forEach(x=>{
+  ['invites','users','history','settings','moderation'].forEach(x=>{
     document.getElementById('tab'+cap(x)).classList.toggle('hidden',x!==t);
     document.getElementById('pt'+cap(x)).classList.toggle('active',x===t);
   });
   if(t==='invites') loadInvites();
   if(t==='users') loadUsers();
   if(t==='history') loadHistory();
+  if(t==='moderation') loadModerationSettings();
+  if(t==='settings') loadGuestsSetting();
 }
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
@@ -884,6 +964,7 @@ async function loadUsers(){
     document.getElementById('usersList').innerHTML=users.map(u=>{
       const rc=ROLE_CFG[u.role]||{label:u.role,color:'var(--soft)'};
       const roleOpts=['admin','editor','user'].map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${ROLE_CFG[r].label}</option>`).join('');
+      const prefixVal = u.prefix||'';
       return `<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:9px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:8px">
@@ -895,10 +976,17 @@ async function loadUsers(){
           </div>
           ${u.role!=='admin'?`<button onclick="deleteUser(${u.id},'${esc(u.username)}')" class="btn btn-rose btn-xs">Удалить</button>`:'<span style="font-size:10px;color:var(--amber)">Создатель</span>'}
         </div>
-        ${u.role!=='admin'?`<div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--muted)">Роль:</span>
-          <select class="fsel" style="font-size:11px;padding:4px 8px" onchange="changeRole(${u.id},this.value)">${roleOpts}</select>
-        </div>`:''}
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted);min-width:36px">Роль:</span>
+            <select class="fsel" style="font-size:11px;padding:4px 8px" onchange="changeRole(${u.id},this.value)">${roleOpts}</select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted);min-width:36px">Префикс:</span>
+            <input class="fi" id="prefix-inp-${u.id}" value="${esc(prefixVal)}" placeholder="например: 🔥 Босс" style="font-size:11px;padding:4px 8px;height:28px;flex:1">
+            <button onclick="savePrefix(${u.id})" class="btn btn-violet btn-xs">Сохранить</button>
+          </div>
+        </div>
       </div>`;
     }).join('');
   }catch(e){}
@@ -961,6 +1049,72 @@ async function changePanelPw(){
   if(p1!==p2){showToast('Пароли не совпадают',true);return;}
   try{await api('POST','/api/admin/change-panel-password',{newPassword:p1});document.getElementById('newPanelPw').value='';document.getElementById('newPanelPw2').value='';showToast('Пароль панели изменён ✦');}
   catch(e){showToast(e.message,true);}
+}
+
+
+// ── Prefix map ────────────────────────────────────────────────────────────────
+async function loadPrefixMap() {
+  try {
+    const data = await api('GET', '/api/users/prefixes');
+    prefixMap = data;
+  } catch(e) {}
+}
+
+function getPrefix(username) {
+  return prefixMap[username] || '';
+}
+
+// ── Admin: guests toggle ──────────────────────────────────────────────────────
+async function loadGuestsSetting() {
+  try {
+    const d = await api('GET', '/api/admin/guests-setting');
+    guestsAllowed = d.allowed;
+    document.getElementById('guestStatusLabel').textContent = d.allowed ? '✓ Гости могут заходить' : '✕ Гостевой вход отключён';
+    document.getElementById('btnGuestAllow').style.opacity = d.allowed ? '1' : '0.5';
+    document.getElementById('btnGuestDeny').style.opacity = d.allowed ? '0.5' : '1';
+  } catch(e) {}
+}
+
+async function setGuestsAllowed(val) {
+  try {
+    await api('POST', '/api/admin/guests-toggle', { allowed: val });
+    showToast(val ? 'Гости разрешены ✦' : 'Гостевой вход запрещён');
+    loadGuestsSetting();
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: clear chat ─────────────────────────────────────────────────────────
+async function clearChat() {
+  if (!confirm('Удалить все сообщения в чате?')) return;
+  try { await api('DELETE', '/api/admin/chat'); showToast('Чат очищен ✦'); }
+  catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: clear history ──────────────────────────────────────────────────────
+async function clearHistory() {
+  if (!confirm('Удалить всю историю действий?')) return;
+  try {
+    await api('DELETE', '/api/admin/history');
+    document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>';
+    showToast('История очищена ✦');
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: prefix ─────────────────────────────────────────────────────────────
+async function savePrefix(id) {
+  const val = document.getElementById('prefix-inp-'+id)?.value || '';
+  try {
+    await api('POST', '/api/admin/users/'+id+'/prefix', { prefix: val });
+    await loadPrefixMap();
+    showToast('Префикс сохранён ✦');
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Chat: delete message (admin) ──────────────────────────────────────────────
+async function deleteChatMsg(id) {
+  try {
+    await api('DELETE', '/api/admin/chat/'+id);
+  } catch(e) { showToast(e.message, true); }
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -1045,6 +1199,7 @@ async function sendChatMessage() {
   const msg = {
     id: genChatId(),
     author: currentUser.username,
+    prefix: currentUser.prefix || '',
     text,
     file_url,
     file_type,
@@ -1166,7 +1321,7 @@ function appendChatMsg(msg) {
   const isMe = msg.author === currentUser?.username;
   const div = document.createElement('div');
   div.className = 'chat-msg ' + (isMe ? 'me' : 'them');
-  div.id = 'cm2-' + msg.id;
+
 
   let inner = '';
 
@@ -1194,10 +1349,18 @@ function appendChatMsg(msg) {
     inner = `<div class="chat-bubble">${esc(msg.text||'')}</div>`;
   }
 
+  const prefix = getPrefix(msg.author);
+  const prefixHtml = prefix ? `<span style="font-size:9px;background:rgba(167,139,250,.15);color:var(--violet);border:1px solid rgba(167,139,250,.3);border-radius:4px;padding:1px 5px;margin-right:4px;font-family:'Syne',sans-serif;font-weight:700">${esc(prefix)}</span>` : '';
+  const isAdminUser = currentUser?.role === 'admin';
+  const delBtn = isAdminUser ? `<button onclick="deleteChatMsg('${msg.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;border-radius:4px;opacity:0;transition:.15s" class="chat-del-btn" onmouseover="this.style.color='var(--rose)';this.style.opacity='1'" onmouseout="this.style.color='var(--muted)';this.style.opacity='0'"><svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>` : '';
+  div.id = 'chatmsg-' + msg.id;
   div.innerHTML = `
-    <div style="font-size:10px;color:var(--muted);margin-bottom:2px;font-family:'Syne',sans-serif;font-weight:600;padding:0 4px">${isMe?'':esc(msg.author)}</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:2px;font-family:'Syne',sans-serif;font-weight:600;padding:0 4px;display:flex;align-items:center;gap:4px">${isMe?'':prefixHtml+esc(msg.author)} ${delBtn}</div>
     ${inner}
-    <div class="chat-meta">${msg.created_at}</div>`;
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="chat-meta">\${msg.created_at}</span>
+      \${isAdmin2?`<button onclick="deleteChatMsg('\${msg.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;padding:0" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">✕</button>`:''}
+    </div>\`;
 
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
@@ -1253,6 +1416,7 @@ function resetVoiceWave(msgId, totalDur) {
   }
 }
 
+
 async function loadChatHistory() {
   try {
     const r = await fetch('/api/chat', { headers: {'x-token': token||''} });
@@ -1260,6 +1424,57 @@ async function loadChatHistory() {
     const msgs = await r.json();
     msgs.forEach(m => appendChatMsg(m));
   } catch(e) {}
+}
+
+
+// ── Moderation panel ──────────────────────────────────────────────────────────
+let guestsAllowed = true;
+
+async function loadModerationSettings() {
+  try {
+    const d = await api('GET', '/api/admin/settings');
+    guestsAllowed = d.guests_allowed;
+    updateGuestBtn();
+  } catch(e) {}
+}
+
+function updateGuestBtn() {
+  const btn = document.getElementById('guestToggleBtn');
+  if (!btn) return;
+  btn.textContent = guestsAllowed ? '✅ Разрешён' : '🚫 Запрещён';
+  btn.className = guestsAllowed ? 'btn btn-teal btn-sm' : 'btn btn-rose btn-sm';
+}
+
+async function toggleGuests() {
+  try {
+    guestsAllowed = !guestsAllowed;
+    await api('POST', '/api/admin/guests-allowed', { allowed: guestsAllowed });
+    updateGuestBtn();
+    showToast(guestsAllowed ? 'Гости разрешены' : 'Гости запрещены');
+  } catch(e) { showToast(e.message, true); guestsAllowed = !guestsAllowed; }
+}
+
+async function clearChat() {
+  if (!confirm('Удалить все сообщения чата?')) return;
+  try { await api('DELETE', '/api/admin/chat'); showToast('Чат очищен ✦'); }
+  catch(e) { showToast(e.message, true); }
+}
+
+async function clearHistoryLog() {
+  if (!confirm('Очистить историю действий?')) return;
+  try {
+    await api('DELETE', '/api/admin/history');
+    showToast('История очищена ✦');
+    document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>';
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function setPrefix(id) {
+  const val = document.getElementById('pfx-'+id)?.value || '';
+  try {
+    await api('POST', '/api/admin/users/'+id+'/prefix', { prefix: val });
+    showToast(val ? 'Префикс установлен: '+val : 'Префикс убран');
+  } catch(e) { showToast(e.message, true); }
 }
 
 init();
