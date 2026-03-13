@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local City Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b12;--bg2:#0d1120;--surface:#111827;
+  --border:rgba(99,179,237,.11);--border2:rgba(99,179,237,.22);
+  --cyan:#67e8f9;--cyan-dim:rgba(103,232,249,.13);
+  --teal:#2dd4bf;--rose:#fb7185;--amber:#fbbf24;--violet:#a78bfa;
+  --text:#e2e8f0;--muted:#64748b;--soft:#94a3b8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.syne{font-family:'Syne',sans-serif}
+
+/* BG */
+.bg-scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:drift 20s ease-in-out infinite alternate}
+.orb1{width:600px;height:600px;background:radial-gradient(circle,rgba(14,165,233,.2),transparent);top:-200px;left:-150px;animation-duration:22s}
+.orb2{width:500px;height:500px;background:radial-gradient(circle,rgba(45,212,191,.16),transparent);bottom:-100px;right:-80px;animation-duration:26s;animation-delay:-10s}
+.orb3{width:380px;height:380px;background:radial-gradient(circle,rgba(129,140,248,.1),transparent);top:45%;left:55%;animation-duration:16s;animation-delay:-5s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,30px) scale(1.1)}}
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(103,232,249,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(103,232,249,.025) 1px,transparent 1px);background-size:52px 52px}
+
+/* Header */
+.hdr{position:sticky;top:0;z-index:40;background:rgba(8,11,18,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),var(--teal));border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px rgba(103,232,249,.28),0 0 50px rgba(103,232,249,.07);flex-shrink:0}
+
+/* Search */
+.srch{position:relative;flex:1;max-width:320px}
+.srch input{width:100%;padding:8px 14px 8px 38px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:.2s}
+.srch input:focus{border-color:rgba(103,232,249,.38);box-shadow:0 0 0 3px rgba(103,232,249,.07)}
+.srch input::placeholder{color:var(--muted)}
+.srch svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
+
+/* Buttons */
+.ibtn{padding:8px 10px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;color:var(--muted);cursor:pointer;transition:.2s;flex-shrink:0}
+.ibtn:hover{border-color:rgba(103,232,249,.35);color:var(--cyan);background:var(--cyan-dim)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:10px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;border:1px solid}
+.btn-cyan{background:rgba(103,232,249,.12);border-color:rgba(103,232,249,.3);color:var(--cyan)}
+.btn-cyan:hover{background:rgba(103,232,249,.22);box-shadow:0 0 20px rgba(103,232,249,.15)}
+.btn-rose{background:rgba(251,113,133,.1);border-color:rgba(251,113,133,.3);color:var(--rose)}
+.btn-rose:hover{background:rgba(251,113,133,.2)}
+.btn-amber{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.28);color:var(--amber)}
+.btn-amber:hover{background:rgba(251,191,36,.2)}
+.btn-ghost{background:rgba(255,255,255,.04);border-color:var(--border);color:var(--soft)}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-full{width:100%;justify-content:center;padding:12px}
+
+/* Cards */
+.card{border-radius:16px;overflow:hidden;border:1px solid var(--border);background:rgba(11,15,26,.65);transition:.25s;animation:cardIn .4s cubic-bezier(.22,.68,0,1.2) both}
+.card:hover{border-color:rgba(103,232,249,.24);box-shadow:0 8px 36px rgba(103,232,249,.06),0 2px 8px rgba(0,0,0,.4);transform:translateY(-2px)}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* Accordion */
+.cbody{max-height:0;overflow:hidden;transition:max-height .42s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0}
+.cbody.open{max-height:9999px;opacity:1}
+.chevron{width:16px;height:16px;flex-shrink:0;color:var(--muted);transition:.3s cubic-bezier(.22,.68,0,1.2)}
+.chevron.open{transform:rotate(180deg);color:var(--cyan)}
+
+/* Code */
+.code-wrap{position:relative;border-radius:11px;overflow:hidden;border:1px solid rgba(255,255,255,.06);margin:10px 0}
+.lang-tag{position:absolute;top:9px;left:12px;z-index:2;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--cyan);opacity:.6;text-transform:uppercase}
+.cpbtn{position:absolute;top:7px;right:8px;z-index:2;padding:3px 10px;background:rgba(103,232,249,.08);border:1px solid rgba(103,232,249,.2);border-radius:6px;color:var(--cyan);font-size:11px;cursor:pointer;opacity:0;transition:.2s;font-family:'DM Sans',sans-serif}
+.code-wrap:hover .cpbtn{opacity:1}
+.cpbtn:hover{background:rgba(103,232,249,.18)}
+pre[class*="language-"]{margin:0!important;border-radius:0!important;padding-top:32px!important;font-size:12.5px!important;background:#080c18!important}
+
+/* Inputs */
+.fi{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:10px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s}
+.fi:focus{border-color:rgba(103,232,249,.38);box-shadow:0 0 0 3px rgba(103,232,249,.07)}
+.fi::placeholder{color:var(--muted)}
+.fita{resize:vertical;min-height:80px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6}
+.fsel{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:9px;padding:6px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer}
+.flabel{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px}
+
+/* Side panel */
+.side-panel{position:fixed;top:0;right:0;height:100%;width:min(480px,100vw);background:rgba(6,9,16,.97);backdrop-filter:blur(24px);border-left:1px solid var(--border2);z-index:50;transform:translateX(100%);transition:.36s cubic-bezier(.22,.68,0,1.2);overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,.6)}
+.side-panel.open{transform:translateX(0)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
+.modal-bg.hidden{display:none}
+.modal{background:rgba(10,14,24,.98);border:1px solid var(--border2);border-radius:20px;padding:32px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.7)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* Toast */
+.toast{transform:translateX(120%);transition:.35s cubic-bezier(.22,.68,0,1.2);position:fixed;top:20px;right:20px;z-index:80;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:13px;background:rgba(10,14,24,.97);border:1px solid rgba(103,232,249,.25);backdrop-filter:blur(16px);box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:320px}
+.toast.show{transform:translateX(0)}
+.toast.error{border-color:rgba(251,113,133,.35)}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border-radius:11px;padding:4px}
+.tab{flex:1;padding:8px;border-radius:8px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:.2s;border:none;background:none;color:var(--muted);text-align:center;letter-spacing:.04em}
+.tab.active{background:rgba(103,232,249,.12);color:var(--cyan)}
+
+/* History badges */
+.hbadge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+
+/* Block editor */
+.blk-ed{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.blk-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border)}
+
+/* Comment */
+.cmnt{padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;animation:cardIn .3s ease}
+
+/* Divider */
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* Section title */
+.sec-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;background:linear-gradient(135deg,#e2e8f0 30%,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.pill{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:20px;padding:3px 12px;font-family:'DM Sans',sans-serif}
+
+mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding:0 2px}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(103,232,249,.2);border-radius:3px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="bg-scene"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
+<div class="grid-bg"></div>
+
+<!-- Toast -->
+<div id="toast" class="toast">
+  <span id="toastIcon" style="font-size:15px;flex-shrink:0">✦</span>
+  <span id="toastMsg" style="font-size:13px;color:var(--text)"></span>
+</div>
+
+<!-- ═══════════════════════════════════ AUTH MODAL ═══════════════════════════ -->
+<div id="authModal" class="modal-bg">
+  <div class="modal" style="max-width:400px">
+    <div style="text-align:center;margin-bottom:24px">
+      <div class="logo" style="margin:0 auto 14px;width:48px;height:48px">
+        <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div class="syne" style="font-size:22px;font-weight:800;color:var(--text)">Local City Hub</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">база знаний</div>
+    </div>
+
+    <!-- Login / Register tabs -->
+    <div class="tabs" style="margin-bottom:20px">
+      <button class="tab active" onclick="switchAuthTab('login')">Вход</button>
+      <button class="tab" onclick="switchAuthTab('register')">Регистрация</button>
+    </div>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div style="margin-bottom:12px">
+        <label class="flabel">Логин</label>
+        <input id="liLogin" class="fi" placeholder="Имя пользователя" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="margin-bottom:16px">
+        <label class="flabel">Пароль</label>
+        <input id="liPw" class="fi" type="password" placeholder="Пароль" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <p id="loginErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
+      <button class="btn btn-cyan btn-full" onclick="doLogin()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+        Войти
+      </button>
+    </div>
+
+    <!-- Register form -->
+    <div id="registerForm" class="hidden">
+      <div style="margin-bottom:12px">
+        <label class="flabel">Имя пользователя</label>
+        <input id="regLogin" class="fi" placeholder="Минимум 3 символа">
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="flabel">Пароль</label>
+        <input id="regPw" class="fi" type="password" placeholder="Минимум 4 символа">
+      </div>
+      <div style="margin-bottom:16px">
+        <label class="flabel">Код приглашения</label>
+        <input id="regCode" class="fi" placeholder="XXXXXX — от администратора" style="text-transform:uppercase;letter-spacing:.1em;font-family:'Syne',sans-serif">
+      </div>
+      <p id="regErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
+      <button class="btn btn-cyan btn-full" onclick="doRegister()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+        Зарегистрироваться
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ EDIT TOPIC MODAL ════════════════════════ -->
+<div id="editModal" class="modal-bg hidden">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="syne" style="font-size:17px;font-weight:800;color:var(--text)">Редактировать тему</div>
+      <button onclick="closeEditModal()" class="ibtn">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="margin-bottom:14px">
+      <label class="flabel">Название</label>
+      <input id="editTitle" class="fi" placeholder="Заголовок темы">
+    </div>
+    <div id="editBlocksList" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+      <button onclick="addEditBlock('text')" class="btn btn-ghost btn-sm">+ Текст</button>
+      <button onclick="addEditBlock('code')" class="btn btn-ghost btn-sm">+ Код</button>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditModal()" class="btn btn-ghost" style="flex:1;justify-content:center">Отмена</button>
+      <button onclick="saveEdit()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ HEADER ══════════════════════════════ -->
+<header class="hdr">
+  <div style="max-width:840px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px">
+    <div class="logo">
+      <svg width="18" height="18" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+    </div>
+    <div style="flex-shrink:0">
+      <div class="syne" style="font-size:15px;font-weight:800;color:var(--text);line-height:1">Local City Hub</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:1px">база знаний</div>
+    </div>
+
+    <div class="srch" style="margin-left:auto">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+      <input id="searchInput" placeholder="Поиск..." oninput="renderTopics()">
+    </div>
+
+    <!-- User info -->
+    <div id="userBadge" class="hidden" style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div style="text-align:right">
+        <div id="userLabel" class="syne" style="font-size:12px;font-weight:700;color:var(--text)"></div>
+        <div id="roleLabel" style="font-size:10px;color:var(--muted)"></div>
+      </div>
+      <button onclick="doLogout()" class="ibtn" title="Выйти">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+
+    <!-- Admin panel button -->
+    <button id="adminPanelBtn" class="ibtn hidden" onclick="openAdminPanel()" title="Панель администратора">
+      <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════ ADMIN SIDE PANEL ════════════════════════ -->
+<div id="adminSide" class="side-panel">
+  <div style="padding:26px 24px 50px">
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px">
+      <div>
+        <div class="syne" style="font-size:19px;font-weight:800;color:var(--text)">Панель</div>
+        <div style="font-size:11px;color:var(--muted)">администратора</div>
+      </div>
+      <button onclick="closeAdminPanel()" class="ibtn">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Panel password check -->
+    <div id="panelAuthBox">
+      <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.15);border-radius:13px;padding:18px;margin-bottom:16px">
+        <div class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">🔐 Пароль панели</div>
+        <div style="display:flex;gap:8px">
+          <input id="panelPwInput" type="password" class="fi" placeholder="Пароль панели..." style="flex:1" onkeydown="if(event.key==='Enter')verifyPanel()">
+          <button onclick="verifyPanel()" class="btn btn-amber btn-sm">Войти</button>
+        </div>
+        <p id="panelErr" class="hidden" style="color:var(--rose);font-size:12px;margin-top:8px">Неверный пароль</p>
+      </div>
+    </div>
+
+    <div id="panelContent" class="hidden">
+      <!-- Tabs -->
+      <div class="tabs" style="margin-bottom:20px">
+        <button class="tab active" onclick="switchPanelTab('create')" id="ptCreate">Создать</button>
+        <button class="tab" onclick="switchPanelTab('invites')" id="ptInvites">Коды</button>
+        <button class="tab" onclick="switchPanelTab('users')" id="ptUsers">Юзеры</button>
+        <button class="tab" onclick="switchPanelTab('history')" id="ptHistory">История</button>
+        <button class="tab" onclick="switchPanelTab('settings')" id="ptSettings">Пароли</button>
+      </div>
+
+      <!-- CREATE TAB -->
+      <div id="tabCreate">
+        <label class="flabel">Название темы</label>
+        <input id="fTitle" class="fi" placeholder="Заголовок..." style="margin-bottom:12px">
+        <div id="blocksList" style="margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+          <button onclick="addBlock('text')" class="btn btn-ghost btn-sm">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>+ Текст
+          </button>
+          <button onclick="addBlock('code')" class="btn btn-ghost btn-sm">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>+ Код
+          </button>
+        </div>
+        <button onclick="publishTopic()" class="btn btn-cyan btn-full">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Опубликовать
+        </button>
+      </div>
+
+      <!-- INVITES TAB -->
+      <div id="tabInvites" class="hidden">
+        <button onclick="genInvite()" class="btn btn-cyan btn-full" style="margin-bottom:16px">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Создать код приглашения
+        </button>
+        <div id="invitesList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- USERS TAB -->
+      <div id="tabUsers" class="hidden">
+        <button onclick="loadUsers()" class="btn btn-ghost btn-sm" style="margin-bottom:14px">↻ Обновить</button>
+        <div id="usersList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div id="tabHistory" class="hidden">
+        <button onclick="loadHistory()" class="btn btn-ghost btn-sm" style="margin-bottom:14px">↻ Обновить</button>
+        <div id="historyList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- SETTINGS TAB (passwords) -->
+      <div id="tabSettings" class="hidden">
+
+        <!-- Change site password -->
+        <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.14);border-radius:13px;padding:18px;margin-bottom:16px">
+          <div class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:.07em;text-transform:uppercase;margin-bottom:12px">🌐 Пароль сайта (admin)</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Пароль для входа на сайт под аккаунтом администратора</div>
+          <input id="newSitePw" class="fi" type="password" placeholder="Новый пароль (мин. 4 символа)" style="margin-bottom:10px">
+          <input id="newSitePw2" class="fi" type="password" placeholder="Повторите пароль">
+          <button onclick="changeSitePw()" class="btn btn-cyan btn-full" style="margin-top:10px">Изменить пароль сайта</button>
+        </div>
+
+        <!-- Change panel password -->
+        <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.14);border-radius:13px;padding:18px">
+          <div class="syne" style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.07em;text-transform:uppercase;margin-bottom:12px">🔐 Пароль панели</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Пароль для входа в эту панель администратора</div>
+          <input id="newPanelPw" class="fi" type="password" placeholder="Новый пароль (мин. 4 символа)" style="margin-bottom:10px">
+          <input id="newPanelPw2" class="fi" type="password" placeholder="Повторите пароль">
+          <button onclick="changePanelPw()" class="btn btn-amber btn-full" style="margin-top:10px">Изменить пароль панели</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ MAIN ═══════════════════════════════════ -->
+<main style="max-width:840px;margin:0 auto;padding:40px 20px 100px;position:relative;z-index:1">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px">
+    <div>
+      <div class="sec-title">Темы</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">Нажмите на название чтобы раскрыть</div>
+    </div>
+    <span class="pill" id="topicsCount">0 тем</span>
+  </div>
+
+  <div id="topicsContainer" style="display:flex;flex-direction:column;gap:10px"></div>
+
+  <div id="emptyState" style="text-align:center;padding:80px 0">
+    <div style="width:68px;height:68px;border-radius:18px;background:rgba(103,232,249,.05);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--cyan);opacity:.45"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    </div>
+    <div class="syne" style="font-size:15px;font-weight:700;color:var(--soft);margin-bottom:5px">Тем пока нет</div>
+    <div style="font-size:13px;color:var(--muted)">Администратор ещё не добавил темы</div>
+  </div>
+</main>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('token') || null;
+let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+let topics = [];
+let blockCounter = 0;
+let editBlockCounter = 0;
+let editingTopicId = null;
+let panelToken = null;
+let socket = null;
+
+// ── Socket ───────────────────────────────────────────────────────────────────
+try {
+  socket = io();
+  socket.on('topic_created', t => { topics.unshift(t); renderTopics(); showToast('Новая тема: ' + t.title); });
+  socket.on('topic_updated', t => { const i = topics.findIndex(x => x.id === t.id); if(i>=0){topics[i]={...topics[i],...t,blocks:t.blocks};} renderTopics(); });
+  socket.on('topic_deleted', id => { topics = topics.filter(t => t.id !== id); renderTopics(); });
+  socket.on('comment_added', c => { addCommentToDOM(c); });
+  socket.on('comment_deleted', id => { document.getElementById('cm-'+id)?.remove(); });
+} catch(e){}
+
+// ── API helper ───────────────────────────────────────────────────────────────
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method, headers: { 'Content-Type':'application/json', 'x-token': token||'' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Ошибка');
+  return data;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  if (token && currentUser) {
+    showApp();
+    await loadTopics();
+  } else {
+    document.getElementById('authModal').classList.remove('hidden');
+  }
+}
+
+function showApp() {
+  document.getElementById('authModal').classList.add('hidden');
+  document.getElementById('userBadge').classList.remove('hidden');
+  document.getElementById('userLabel').textContent = currentUser.username;
+  document.getElementById('roleLabel').textContent = currentUser.role === 'admin' ? 'Администратор' : 'Участник';
+  if (currentUser.role === 'admin') {
+    document.getElementById('adminPanelBtn').classList.remove('hidden');
+  }
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function switchAuthTab(tab) {
+  document.querySelectorAll('#authModal .tab').forEach((t,i) => t.classList.toggle('active', (tab==='login'&&i===0)||(tab==='register'&&i===1)));
+  document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
+}
+
+async function doLogin() {
+  const username = document.getElementById('liLogin').value.trim();
+  const password = document.getElementById('liPw').value;
+  const err = document.getElementById('loginErr');
+  err.classList.add('hidden');
+  try {
+    const data = await api('POST', '/api/login', { username, password });
+    token = data.token; currentUser = { username: data.username, role: data.role };
+    localStorage.setItem('token', token); localStorage.setItem('user', JSON.stringify(currentUser));
+    showApp(); await loadTopics();
+  } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
+}
+
+async function doRegister() {
+  const username = document.getElementById('regLogin').value.trim();
+  const password = document.getElementById('regPw').value;
+  const code     = document.getElementById('regCode').value.trim();
+  const err = document.getElementById('regErr');
+  err.classList.add('hidden');
+  try {
+    const data = await api('POST', '/api/register', { username, password, code });
+    token = data.token; currentUser = { username: data.username, role: data.role };
+    localStorage.setItem('token', token); localStorage.setItem('user', JSON.stringify(currentUser));
+    showApp(); await loadTopics();
+  } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
+}
+
+async function doLogout() {
+  try { await api('POST', '/api/logout'); } catch(e) {}
+  token = null; currentUser = null;
+  localStorage.removeItem('token'); localStorage.removeItem('user');
+  location.reload();
+}
+
+// ── Topics ───────────────────────────────────────────────────────────────────
+async function loadTopics() {
+  try { topics = await api('GET', '/api/topics'); renderTopics(); } catch(e) {}
+}
+
+function renderTopics() {
+  const container = document.getElementById('topicsContainer');
+  const empty = document.getElementById('emptyState');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = q ? topics.filter(t => t.title.toLowerCase().includes(q)) : topics;
+
+  const n = filtered.length;
+  document.getElementById('topicsCount').textContent = n + (n===1?' тема':n>1&&n<5?' темы':' тем');
+
+  if (!n) { container.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display = 'none';
+
+  container.innerHTML = filtered.map((topic, idx) => {
+    const isAdmin = currentUser?.role === 'admin';
+    const blocksHtml = (topic.blocks||[]).map((b,bi) => {
+      const sep = bi > 0 ? '<div style="height:1px;background:var(--border);margin:8px 0"></div>' : '';
+      if (b.type === 'code') {
+        return `${sep}<div class="code-wrap"><span class="lang-tag">${(b.language||'code').toUpperCase()}</span>
+          <button class="cpbtn" onclick='copyText(${JSON.stringify(b.content)})'>Копировать</button>
+          <pre class="language-${b.language}"><code class="language-${b.language}">${esc(b.content)}</code></pre></div>`;
+      }
+      return `${sep}<div style="color:var(--soft);font-size:14px;line-height:1.8;white-space:pre-wrap;padding:12px 0">${esc(b.content)}</div>`;
+    }).join('');
+
+    const adminBtns = isAdmin ? `
+      <button onclick="event.stopPropagation();openEditModal('${topic.id}')" title="Редактировать" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </button>
+      <button onclick="event.stopPropagation();deleteTopic('${topic.id}')" title="Удалить" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>` : '';
+
+    return `<div class="card" style="animation-delay:${idx*.04}s">
+      <button onclick="toggleCard('${topic.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:18px 20px;background:none;border:none;cursor:pointer;text-align:left;transition:.2s" onmouseover="this.style.background='rgba(103,232,249,.03)'" onmouseout="this.style.background='none'">
+        <span class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);opacity:.55;width:24px;flex-shrink:0">${String(idx+1).padStart(2,'0')}</span>
+        <span class="syne" style="flex:1;font-size:15px;font-weight:600;color:var(--text);line-height:1.3;text-align:left">${hlText(topic.title,q)}</span>
+        <span style="font-size:11px;color:var(--muted);flex-shrink:0;white-space:nowrap">${topic.updated_at !== topic.created_at ? '✎ ' : ''}${topic.created_at}</span>
+        ${adminBtns}
+        <svg class="chevron" id="chev-${topic.id}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div class="cbody" id="body-${topic.id}">
+        <div style="padding:0 20px 20px;border-top:1px solid var(--border)">
+          ${blocksHtml}
+          <div class="divider"></div>
+          <div id="cmts-${topic.id}"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="cmtInput-${topic.id}" class="fi" placeholder="Написать комментарий..." style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')submitComment('${topic.id}')">
+            <button onclick="submitComment('${topic.id}')" class="btn btn-cyan btn-sm">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  Prism.highlightAll();
+
+  // Load comments for open cards
+  filtered.forEach(t => {
+    if (document.getElementById('body-'+t.id)?.classList.contains('open')) loadComments(t.id);
+  });
+}
+
+function toggleCard(id) {
+  const body = document.getElementById('body-'+id);
+  const chev = document.getElementById('chev-'+id);
+  const wasOpen = body.classList.contains('open');
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+  if (!wasOpen) loadComments(id);
+}
+
+async function deleteTopic(id) {
+  if (!confirm('Удалить тему?')) return;
+  try { await api('DELETE', '/api/topics/'+id); } catch(e) { showToast(e.message, true); }
+}
+
+// ── Edit topic ────────────────────────────────────────────────────────────────
+function openEditModal(id) {
+  const topic = topics.find(t => t.id === id);
+  if (!topic) return;
+  editingTopicId = id;
+  document.getElementById('editTitle').value = topic.title;
+  const list = document.getElementById('editBlocksList');
+  list.innerHTML = '';
+  editBlockCounter = 0;
+  (topic.blocks || []).forEach(b => addEditBlock(b.type, b.content, b.language));
+  document.getElementById('editModal').classList.remove('hidden');
+}
+function closeEditModal() {
+  document.getElementById('editModal').classList.add('hidden');
+  editingTopicId = null;
+}
+
+function addEditBlock(type, content='', language='javascript') {
+  const id = ++editBlockCounter;
+  const list = document.getElementById('editBlocksList');
+  const div = document.createElement('div');
+  div.id = 'ebl-'+id; div.className = 'blk-ed';
+  if (type === 'text') {
+    div.innerHTML = `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:#a5b4fc;letter-spacing:.08em;text-transform:uppercase">Текст</span><button onclick="document.getElementById('ebl-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div>
+    <textarea class="fi fita" data-btype="text" style="border:none;border-radius:0;background:transparent">${esc(content)}</textarea>`;
+  } else {
+    const langs = ['javascript','python','css','markup','sql','bash'].map(l=>`<option value="${l}" ${l===language?'selected':''}>${l==='markup'?'HTML':l.charAt(0).toUpperCase()+l.slice(1)}</option>`).join('');
+    div.innerHTML = `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase">Код</span><div style="display:flex;align-items:center;gap:8px"><select class="fsel" data-lang>${langs}</select><button onclick="document.getElementById('ebl-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div></div>
+    <textarea class="fi fita" data-btype="code" style="border:none;border-radius:0;background:transparent;font-family:'JetBrains Mono',monospace;font-size:12px">${esc(content)}</textarea>`;
+  }
+  list.appendChild(div);
+}
+
+async function saveEdit() {
+  const title = document.getElementById('editTitle').value.trim();
+  if (!title) { showToast('Введите название',true); return; }
+  const blocks = [];
+  document.querySelectorAll('#editBlocksList .blk-ed').forEach(el => {
+    const ta = el.querySelector('textarea');
+    const content = ta?.value.trim();
+    if (!content) return;
+    blocks.push({ type: ta.dataset.btype, content, language: ta.dataset.btype==='code' ? (el.querySelector('[data-lang]')?.value||'javascript') : null });
+  });
+  if (!blocks.length) { showToast('Добавьте хотя бы один блок',true); return; }
+  try {
+    await api('PUT', '/api/topics/'+editingTopicId, { title, blocks });
+    closeEditModal();
+    showToast('Тема обновлена ✦');
+  } catch(e) { showToast(e.message,true); }
+}
+
+// ── Publish topic ─────────────────────────────────────────────────────────────
+function addBlock(type) {
+  const id = ++blockCounter;
+  const list = document.getElementById('blocksList');
+  const div = document.createElement('div');
+  div.id = 'bl-'+id; div.className = 'blk-ed';
+  if (type === 'text') {
+    div.innerHTML = `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:#a5b4fc;letter-spacing:.08em;text-transform:uppercase">Текст</span><button onclick="document.getElementById('bl-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div>
+    <textarea class="fi fita" data-btype="text" style="border:none;border-radius:0;background:transparent" placeholder="Введите текст..."></textarea>`;
+  } else {
+    div.innerHTML = `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase">Код</span><div style="display:flex;align-items:center;gap:8px"><select class="fsel" data-lang><option value="javascript">JavaScript</option><option value="python">Python</option><option value="css">CSS</option><option value="markup">HTML</option><option value="sql">SQL</option><option value="bash">Bash</option></select><button onclick="document.getElementById('bl-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div></div>
+    <textarea class="fi fita" data-btype="code" style="border:none;border-radius:0;background:transparent;font-family:'JetBrains Mono',monospace;font-size:12px" placeholder="Вставьте код..."></textarea>`;
+  }
+  list.appendChild(div);
+}
+
+async function publishTopic() {
+  const title = document.getElementById('fTitle').value.trim();
+  if (!title) { showToast('Введите название',true); return; }
+  const blocks = [];
+  document.querySelectorAll('#blocksList .blk-ed').forEach(el => {
+    const ta = el.querySelector('textarea');
+    const content = ta?.value.trim();
+    if (!content) return;
+    blocks.push({ type: ta.dataset.btype, content, language: ta.dataset.btype==='code'?(el.querySelector('[data-lang]')?.value||'javascript'):null });
+  });
+  if (!blocks.length) { showToast('Добавьте хотя бы один блок',true); return; }
+  try {
+    await api('POST', '/api/topics', { title, blocks });
+    document.getElementById('fTitle').value = '';
+    document.getElementById('blocksList').innerHTML = '';
+    blockCounter = 0;
+    showToast('Тема опубликована ✦');
+  } catch(e) { showToast(e.message,true); }
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+async function loadComments(topicId) {
+  try {
+    const comments = await api('GET', '/api/topics/'+topicId+'/comments');
+    const box = document.getElementById('cmts-'+topicId);
+    if (!box) return;
+    box.innerHTML = '';
+    comments.forEach(c => addCommentToDOM(c));
+  } catch(e) {}
+}
+
+function addCommentToDOM(c) {
+  const box = document.getElementById('cmts-'+c.topic_id);
+  if (!box) return;
+  if (document.getElementById('cm-'+c.id)) return;
+  const isAdmin = currentUser?.role === 'admin';
+  const div = document.createElement('div');
+  div.id = 'cm-'+c.id; div.className = 'cmnt';
+  div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--teal));display:flex;align-items:center;justify-content:center">
+        <span class="syne" style="font-size:10px;font-weight:800;color:#080b12">${c.author.charAt(0).toUpperCase()}</span>
+      </div>
+      <span class="syne" style="font-size:12px;font-weight:700;color:var(--text)">${esc(c.author)}</span>
+      <span style="font-size:11px;color:var(--muted)">${c.created_at}</span>
+    </div>
+    ${isAdmin ? `<button onclick="deleteComment('${c.id}')" style="padding:3px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:5px;transition:.15s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'"><svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>` : ''}
+  </div>
+  <div style="font-size:13px;color:var(--soft);line-height:1.6;padding-left:34px">${esc(c.content)}</div>`;
+  box.appendChild(div);
+}
+
+async function submitComment(topicId) {
+  const input = document.getElementById('cmtInput-'+topicId);
+  const content = input?.value.trim();
+  if (!content) return;
+  try {
+    await api('POST', '/api/topics/'+topicId+'/comments', { content });
+    input.value = '';
+  } catch(e) { showToast(e.message,true); }
+}
+
+async function deleteComment(id) {
+  try { await api('DELETE', '/api/comments/'+id); } catch(e) { showToast(e.message,true); }
+}
+
+// ── Admin panel ───────────────────────────────────────────────────────────────
+function openAdminPanel() { document.getElementById('adminSide').classList.add('open'); }
+function closeAdminPanel() { document.getElementById('adminSide').classList.remove('open'); }
+
+async function verifyPanel() {
+  const pw = document.getElementById('panelPwInput').value;
+  try {
+    const data = await api('POST', '/api/panel/auth', { password: pw });
+    panelToken = data.panelToken;
+    document.getElementById('panelAuthBox').classList.add('hidden');
+    document.getElementById('panelContent').classList.remove('hidden');
+    loadInvites(); loadHistory();
+  } catch(e) {
+    document.getElementById('panelErr').classList.remove('hidden');
+  }
+}
+
+function switchPanelTab(tab) {
+  ['create','invites','users','history','settings'].forEach(t => {
+    document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('hidden', t!==tab);
+    document.getElementById('pt'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+  });
+  if (tab==='invites') loadInvites();
+  if (tab==='users') loadUsers();
+  if (tab==='history') loadHistory();
+}
+
+async function genInvite() {
+  try {
+    const data = await api('POST', '/api/admin/invite');
+    showToast('Код создан: ' + data.code);
+    loadInvites();
+  } catch(e) { showToast(e.message,true); }
+}
+
+async function loadInvites() {
+  try {
+    const codes = await api('GET', '/api/admin/invites');
+    const box = document.getElementById('invitesList');
+    box.innerHTML = codes.length === 0 ? '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Кодов нет</div>' :
+      codes.map(c => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid ${c.used?'var(--border)':'rgba(103,232,249,.15)'};border-radius:9px">
+        <div>
+          <span class="syne" style="font-size:14px;font-weight:700;letter-spacing:.1em;color:${c.used?'var(--muted)':'var(--cyan)'}">${c.code}</span>
+          ${c.used ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">Использован: ${c.used_by}</div>` : '<div style="font-size:11px;color:var(--teal);margin-top:2px">Активен</div>'}
+        </div>
+        ${!c.used ? `<button onclick='navigator.clipboard.writeText("${c.code}").then(()=>showToast("Скопировано!"))' class="btn btn-ghost btn-sm">⧉</button>` : ''}
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadUsers() {
+  try {
+    const users = await api('GET', '/api/admin/users');
+    const box = document.getElementById('usersList');
+    box.innerHTML = users.map(u => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:9px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,${u.role==='admin'?'var(--amber),#f97316':'var(--cyan),var(--teal)'});display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span class="syne" style="font-size:11px;font-weight:800;color:#080b12">${u.username.charAt(0).toUpperCase()}</span>
+        </div>
+        <div>
+          <div class="syne" style="font-size:13px;font-weight:700;color:var(--text)">${esc(u.username)}</div>
+          <div style="font-size:11px;color:var(--muted)">${u.role==='admin'?'Администратор':'Участник'} · ${u.created_at}</div>
+        </div>
+      </div>
+      ${u.role !== 'admin' ? `<button onclick="deleteUser(${u.id},'${esc(u.username)}')" class="btn btn-rose btn-sm">Удалить</button>` : '<span style="font-size:11px;color:var(--amber)">Admin</span>'}
+    </div>`).join('');
+  } catch(e) {}
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Удалить пользователя ${name}?`)) return;
+  try { await api('DELETE', '/api/admin/users/'+id); showToast('Удалён: '+name); loadUsers(); }
+  catch(e) { showToast(e.message,true); }
+}
+
+const ACTION_LABELS = {
+  register:             { label:'Регистрация',   color:'var(--teal)' },
+  login:                { label:'Вход',           color:'var(--cyan)' },
+  create_topic:         { label:'Создал тему',    color:'var(--violet)' },
+  edit_topic:           { label:'Изменил тему',   color:'var(--amber)' },
+  delete_topic:         { label:'Удалил тему',    color:'var(--rose)' },
+  comment:              { label:'Комментарий',    color:'var(--soft)' },
+  delete_comment:       { label:'Удалил коммент', color:'var(--rose)' },
+  create_invite:        { label:'Создал код',     color:'var(--teal)' },
+  delete_user:          { label:'Удалил юзера',   color:'var(--rose)' },
+  change_site_password: { label:'Сменил пароль сайта',  color:'var(--amber)' },
+  change_panel_password:{ label:'Сменил пароль панели', color:'var(--amber)' },
+};
+
+async function loadHistory() {
+  try {
+    const rows = await api('GET', '/api/admin/history');
+    const box = document.getElementById('historyList');
+    box.innerHTML = rows.length === 0 ? '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>' :
+      rows.map(r => {
+        const a = ACTION_LABELS[r.action] || { label: r.action, color:'var(--soft)' };
+        return `<div style="padding:10px 12px;background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:9px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="syne" style="font-size:12px;font-weight:700;color:var(--text)">${esc(r.actor)}</span>
+              <span class="hbadge" style="background:${a.color}22;color:${a.color};border:1px solid ${a.color}44">${a.label}</span>
+            </div>
+            <span style="font-size:10px;color:var(--muted)">${r.created_at}</span>
+          </div>
+          ${r.target ? `<div style="font-size:12px;color:var(--soft);padding-left:4px">→ ${esc(r.target)}</div>` : ''}
+          ${r.detail ? `<div style="font-size:11px;color:var(--muted);padding-left:4px;margin-top:2px">${esc(r.detail)}</div>` : ''}
+        </div>`;
+      }).join('');
+  } catch(e) {}
+}
+
+// ── Change passwords ──────────────────────────────────────────────────────────
+async function changeSitePw() {
+  const p1 = document.getElementById('newSitePw').value;
+  const p2 = document.getElementById('newSitePw2').value;
+  if (!p1) { showToast('Введите пароль',true); return; }
+  if (p1 !== p2) { showToast('Пароли не совпадают',true); return; }
+  try {
+    await api('POST', '/api/admin/change-site-password', { newPassword: p1 });
+    document.getElementById('newSitePw').value = '';
+    document.getElementById('newSitePw2').value = '';
+    showToast('Пароль сайта изменён ✦');
+  } catch(e) { showToast(e.message,true); }
+}
+
+async function changePanelPw() {
+  const p1 = document.getElementById('newPanelPw').value;
+  const p2 = document.getElementById('newPanelPw2').value;
+  if (!p1) { showToast('Введите пароль',true); return; }
+  if (p1 !== p2) { showToast('Пароли не совпадают',true); return; }
+  try {
+    await api('POST', '/api/admin/change-panel-password', { newPassword: p1 });
+    document.getElementById('newPanelPw').value = '';
+    document.getElementById('newPanelPw2').value = '';
+    showToast('Пароль панели изменён ✦');
+  } catch(e) { showToast(e.message,true); }
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
+function hlText(text, q) {
+  if (!q) return esc(text);
+  return esc(text).replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');
+}
+function copyText(text) { navigator.clipboard.writeText(text).then(()=>showToast('Скопировано ✦')); }
+
+let toastTimer;
+function showToast(msg, isErr=false) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = isErr ? '✕' : '✦';
+  document.getElementById('toastIcon').style.color = isErr ? 'var(--rose)' : 'var(--cyan)';
+  t.style.borderColor = isErr ? 'rgba(251,113,133,.35)' : 'rgba(103,232,249,.25)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// Sidebar tab helper (capitalise first letter)
+function capFirst(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
