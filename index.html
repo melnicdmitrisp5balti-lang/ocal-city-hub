@@ -1428,55 +1428,6 @@ async function loadChatHistory() {
 
 
 // ── Moderation panel ──────────────────────────────────────────────────────────
-let guestsAllowed = true;
-
-async function loadModerationSettings() {
-  try {
-    const d = await api('GET', '/api/admin/settings');
-    guestsAllowed = d.guests_allowed;
-    updateGuestBtn();
-  } catch(e) {}
-}
-
-function updateGuestBtn() {
-  const btn = document.getElementById('guestToggleBtn');
-  if (!btn) return;
-  btn.textContent = guestsAllowed ? '✅ Разрешён' : '🚫 Запрещён';
-  btn.className = guestsAllowed ? 'btn btn-teal btn-sm' : 'btn btn-rose btn-sm';
-}
-
-async function toggleGuests() {
-  try {
-    guestsAllowed = !guestsAllowed;
-    await api('POST', '/api/admin/guests-allowed', { allowed: guestsAllowed });
-    updateGuestBtn();
-    showToast(guestsAllowed ? 'Гости разрешены' : 'Гости запрещены');
-  } catch(e) { showToast(e.message, true); guestsAllowed = !guestsAllowed; }
-}
-
-async function clearChat() {
-  if (!confirm('Удалить все сообщения чата?')) return;
-  try { await api('DELETE', '/api/admin/chat'); showToast('Чат очищен ✦'); }
-  catch(e) { showToast(e.message, true); }
-}
-
-async function clearHistoryLog() {
-  if (!confirm('Очистить историю действий?')) return;
-  try {
-    await api('DELETE', '/api/admin/history');
-    showToast('История очищена ✦');
-    document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>';
-  } catch(e) { showToast(e.message, true); }
-}
-
-async function setPrefix(id) {
-  const val = document.getElementById('pfx-'+id)?.value || '';
-  try {
-    await api('POST', '/api/admin/users/'+id+'/prefix', { prefix: val });
-    showToast(val ? 'Префикс установлен: '+val : 'Префикс убран');
-  } catch(e) { showToast(e.message, true); }
-}
-
 init();
 loadChatHistory();
 </script>
