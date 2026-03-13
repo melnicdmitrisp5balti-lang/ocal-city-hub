@@ -543,6 +543,7 @@ try {
   socket.on('chat_msg_deleted', id => { document.getElementById('chatmsg-'+id)?.remove(); });
   socket.on('guests_setting', d => { guestsAllowed = d.allowed; });
   socket.on('user_prefix_updated', d => {
+    // Update local maps immediately with full data from event
     prefixMap[d.username] = d.prefix || '';
     prefixColorMap[d.username] = d.color || '';
     prefixStyleMap[d.username] = d.style || 'solid';
@@ -551,6 +552,7 @@ try {
       localStorage.setItem('user', JSON.stringify(currentUser));
       updateHeaderBadge();
     }
+    // Re-render topics so all cards reflect new prefix
     renderTopics();
   });
   socket.on('role_updated', d => {
@@ -576,7 +578,7 @@ async function api(method, url, body) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  if (token && currentUser) { showApp(); await loadTopics(); await loadPrefixMap(); }
+  if (token && currentUser) { showApp(); await loadPrefixMap(); await loadTopics(); }
   else document.getElementById('authModal').classList.remove('hidden');
 }
 
@@ -1101,6 +1103,7 @@ async function loadPrefixMap() {
       }
     });
     updateHeaderBadge();
+    if (topics.length) renderTopics();
   } catch(e) {}
 }
 
@@ -1242,9 +1245,18 @@ async function applyPfx() {
   const col = document.getElementById('pfxColor').value;
   const col2 = document.getElementById('pfxColor2').value;
   const st = pfxEditStyle;
+  // Find username for this id from DOM
+  const usernameEl = document.getElementById('pfxModalUsername');
+  const uname = usernameEl ? usernameEl.textContent.replace('@','').trim() : '';
   try {
     await api('POST', '/api/admin/users/'+pfxEditUserId+'/prefix', { prefix: val, color: col, color2: col2, style: st });
-    await loadPrefixMap();
+    // Immediately update local maps so admin sees change without waiting for socket
+    if (uname) {
+      prefixMap[uname] = val;
+      prefixColorMap[uname] = col;
+      prefixStyleMap[uname] = st;
+      if (currentUser && currentUser.username === uname) updateHeaderBadge();
+    }
     renderTopics();
     loadUsers();
     closePfxModal();
@@ -1254,9 +1266,16 @@ async function applyPfx() {
 
 async function clearPfx() {
   if (!pfxEditUserId) return;
+  const usernameEl = document.getElementById('pfxModalUsername');
+  const uname = usernameEl ? usernameEl.textContent.replace('@','').trim() : '';
   try {
     await api('POST', '/api/admin/users/'+pfxEditUserId+'/prefix', { prefix: '', color: '', color2: '', style: 'solid' });
-    await loadPrefixMap();
+    if (uname) {
+      prefixMap[uname] = '';
+      prefixColorMap[uname] = '';
+      prefixStyleMap[uname] = 'solid';
+      if (currentUser && currentUser.username === uname) updateHeaderBadge();
+    }
     renderTopics();
     loadUsers();
     closePfxModal();

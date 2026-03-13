@@ -124,6 +124,7 @@ async function initDB() {
   try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
+  try { await run("UPDATE users SET prefix_style='solid' WHERE prefix_style IS NULL OR prefix_style=''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_color2 TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
@@ -133,6 +134,7 @@ async function initDB() {
   try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
+  try { await run("UPDATE users SET prefix_style='solid' WHERE prefix_style IS NULL OR prefix_style=''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_color2 TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
