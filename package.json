@@ -1,11 +1,9 @@
 {
   "name": "local-city-hub",
-  "version": "2.0.0",
-  "description": "Local City Hub with SQLite, auth, invites, history",
+  "version": "3.0.0",
+  "description": "Local City Hub",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.6.1",

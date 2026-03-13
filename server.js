@@ -18,8 +18,7 @@ db.pragma('journal_mode = WAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    key TEXT PRIMARY KEY, value TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +28,7 @@ db.exec(`
     created_at    TEXT DEFAULT (datetime('now','localtime'))
   );
   CREATE TABLE IF NOT EXISTS invite_codes (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     code       TEXT UNIQUE NOT NULL,
     used       INTEGER DEFAULT 0,
     used_by    TEXT,
@@ -60,21 +59,17 @@ db.exec(`
   );
 `);
 
-// ── Default settings ──────────────────────────────────────────────────────────
-// site_password  = password to log in as "admin" user on the site
-// panel_password = password to open the admin side-panel
+// ── Settings ──────────────────────────────────────────────────────────────────
 function getSetting(key) {
-  const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key);
-  return row ? row.value : null;
+  return db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value || null;
 }
-function setSetting(key, value) {
-  db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, value);
+function setSetting(key, val) {
+  db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, val);
 }
-
 if (!getSetting('panel_password')) setSetting('panel_password', hashPw('panel123'));
 if (!getSetting('site_password'))  setSetting('site_password',  hashPw('admin123'));
 
-// Create admin user if absent
+// Create default admin
 if (!db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()) {
   db.prepare("INSERT OR IGNORE INTO users (username,password_hash,role) VALUES ('admin',?,'admin')").run(getSetting('site_password'));
   console.log('Admin created: admin / admin123');
@@ -91,8 +86,11 @@ function addHistory(actor, action, target, detail) {
   db.prepare('INSERT INTO history (actor,action,target,detail) VALUES (?,?,?,?)').run(actor, action, target || null, detail || null);
 }
 
-// ── Sessions (in-memory) ──────────────────────────────────────────────────────
-const sessions = new Map(); // token -> { userId, username, role }
+// Roles that can create/edit topics
+const EDITOR_ROLES = ['admin', 'editor'];
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+const sessions = new Map();
 function createSession(user) {
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { userId: user.id, username: user.username, role: user.role });
@@ -100,12 +98,11 @@ function createSession(user) {
 }
 function getSession(token) { return token ? sessions.get(token) : null; }
 
-// ── Auth middleware ───────────────────────────────────────────────────────────
+// ── Middleware ────────────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   const sess = getSession(req.headers['x-token']);
   if (!sess) return res.status(401).json({ error: 'Не авторизован' });
-  req.user = sess;
-  next();
+  req.user = sess; next();
 }
 function requireAdmin(req, res, next) {
   requireAuth(req, res, () => {
@@ -113,23 +110,35 @@ function requireAdmin(req, res, next) {
     next();
   });
 }
+function requireEditor(req, res, next) {
+  requireAuth(req, res, () => {
+    if (!EDITOR_ROLES.includes(req.user.role)) return res.status(403).json({ error: 'Нет прав для этого действия' });
+    next();
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ROUTES
+//  AUTH ROUTES
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Panel password check (no session needed) ──────────────────────────────────
-app.post('/api/panel/auth', (req, res) => {
+// Panel password check
+app.post('/api/panel/auth', requireAdmin, (req, res) => {
   const { password } = req.body;
   if (hashPw(password) !== getSetting('panel_password'))
     return res.status(401).json({ error: 'Неверный пароль панели' });
-  // Return a short-lived panel token separate from user session
-  const panelToken = crypto.randomBytes(16).toString('hex');
-  sessions.set('panel:' + panelToken, { panel: true });
-  res.json({ panelToken });
+  res.json({ ok: true });
 });
 
-// ── Register ──────────────────────────────────────────────────────────────────
+// Guest login — creates temporary session, no DB entry
+app.post('/api/guest', (req, res) => {
+  const guestName = 'Гость_' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const fakeUser = { id: null, username: guestName, role: 'guest' };
+  const token = createSession(fakeUser);
+  addHistory(guestName, 'guest_login', null, null);
+  res.json({ token, username: guestName, role: 'guest' });
+});
+
+// Register
 app.post('/api/register', (req, res) => {
   const { username, password, code } = req.body;
   if (!username || !password || !code)
@@ -140,7 +149,7 @@ app.post('/api/register', (req, res) => {
     return res.status(400).json({ error: 'Пароль минимум 4 символа' });
 
   const invite = db.prepare("SELECT * FROM invite_codes WHERE code=? AND used=0").get(code.trim().toUpperCase());
-  if (!invite) return res.status(400).json({ error: 'Неверный или уже использованный код' });
+  if (!invite) return res.status(400).json({ error: 'Неверный или использованный код' });
 
   if (db.prepare("SELECT id FROM users WHERE username=?").get(username.trim()))
     return res.status(400).json({ error: 'Имя пользователя занято' });
@@ -150,11 +159,11 @@ app.post('/api/register', (req, res) => {
 
   const user = db.prepare("SELECT * FROM users WHERE id=?").get(insertId);
   const token = createSession(user);
-  addHistory(username.trim(), 'register', null, `Приглашение: ${code.toUpperCase()}`);
+  addHistory(username.trim(), 'register', null, `Код: ${code.toUpperCase()}`);
   res.json({ token, username: user.username, role: user.role });
 });
 
-// ── Login ─────────────────────────────────────────────────────────────────────
+// Login
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const user = db.prepare("SELECT * FROM users WHERE username=?").get(username?.trim());
@@ -165,30 +174,33 @@ app.post('/api/login', (req, res) => {
   res.json({ token, username: user.username, role: user.role });
 });
 
-// ── Logout ────────────────────────────────────────────────────────────────────
+// Logout
 app.post('/api/logout', requireAuth, (req, res) => {
-  sessions.delete(req.headers['x-token']);
-  res.json({ ok: true });
+  sessions.delete(req.headers['x-token']); res.json({ ok: true });
 });
 
-// ── Me ────────────────────────────────────────────────────────────────────────
+// Me
 app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
-// ── Admin: change passwords ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  ADMIN ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Change site password
 app.post('/api/admin/change-site-password', requireAdmin, (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 4)
     return res.status(400).json({ error: 'Пароль минимум 4 символа' });
-  const hashed = hashPw(newPassword);
-  setSetting('site_password', hashed);
-  // Also update admin user password
-  db.prepare("UPDATE users SET password_hash=? WHERE role='admin'").run(hashed);
+  const h = hashPw(newPassword);
+  setSetting('site_password', h);
+  db.prepare("UPDATE users SET password_hash=? WHERE role='admin'").run(h);
   addHistory(req.user.username, 'change_site_password', null, null);
   res.json({ ok: true });
 });
 
+// Change panel password
 app.post('/api/admin/change-panel-password', requireAdmin, (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 4)
@@ -198,44 +210,56 @@ app.post('/api/admin/change-panel-password', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Admin: invite codes ───────────────────────────────────────────────────────
+// Invite codes
 app.post('/api/admin/invite', requireAdmin, (req, res) => {
   const code = Math.random().toString(36).slice(2, 8).toUpperCase();
   db.prepare("INSERT INTO invite_codes (code) VALUES (?)").run(code);
   addHistory(req.user.username, 'create_invite', code, null);
   res.json({ code });
 });
-
 app.get('/api/admin/invites', requireAdmin, (req, res) => {
   res.json(db.prepare("SELECT * FROM invite_codes ORDER BY created_at DESC LIMIT 100").all());
 });
 
-// ── Admin: users ──────────────────────────────────────────────────────────────
+// Users
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   res.json(db.prepare("SELECT id,username,role,created_at FROM users ORDER BY created_at DESC").all());
 });
-
 app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
-  const user = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'Не найден' });
-  if (user.role === 'admin') return res.status(400).json({ error: 'Нельзя удалить администратора' });
+  const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'Не найден' });
+  if (u.role === 'admin') return res.status(400).json({ error: 'Нельзя удалить администратора' });
   db.prepare("DELETE FROM users WHERE id=?").run(req.params.id);
-  addHistory(req.user.username, 'delete_user', user.username, null);
+  addHistory(req.user.username, 'delete_user', u.username, null);
   res.json({ ok: true });
 });
 
-// ── Admin: history ────────────────────────────────────────────────────────────
+// Change user role
+app.post('/api/admin/users/:id/role', requireAdmin, (req, res) => {
+  const { role } = req.body;
+  const allowed = ['admin', 'editor', 'user'];
+  if (!allowed.includes(role)) return res.status(400).json({ error: 'Недопустимая роль' });
+  const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'Не найден' });
+  db.prepare("UPDATE users SET role=? WHERE id=?").run(role, req.params.id);
+  addHistory(req.user.username, 'change_role', u.username, `${u.role} → ${role}`);
+  res.json({ ok: true });
+});
+
+// History
 app.get('/api/admin/history', requireAdmin, (req, res) => {
   res.json(db.prepare("SELECT * FROM history ORDER BY created_at DESC LIMIT 300").all());
 });
 
-// ── Topics ────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  TOPICS
+// ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/topics', (req, res) => {
-  const topics = db.prepare("SELECT * FROM topics ORDER BY created_at DESC").all();
-  res.json(topics.map(t => ({ ...t, blocks: JSON.parse(t.blocks) })));
+  const rows = db.prepare("SELECT * FROM topics ORDER BY created_at DESC").all();
+  res.json(rows.map(t => ({ ...t, blocks: JSON.parse(t.blocks) })));
 });
 
-app.post('/api/topics', requireAdmin, (req, res) => {
+app.post('/api/topics', requireEditor, (req, res) => {
   const { title, blocks } = req.body;
   if (!title || !blocks?.length) return res.status(400).json({ error: 'Нет данных' });
   const id = genId();
@@ -248,7 +272,7 @@ app.post('/api/topics', requireAdmin, (req, res) => {
   res.json(topic);
 });
 
-app.put('/api/topics/:id', requireAdmin, (req, res) => {
+app.put('/api/topics/:id', requireEditor, (req, res) => {
   const { title, blocks } = req.body;
   const old = db.prepare("SELECT * FROM topics WHERE id=?").get(req.params.id);
   if (!old) return res.status(404).json({ error: 'Не найдено' });
@@ -261,22 +285,28 @@ app.put('/api/topics/:id', requireAdmin, (req, res) => {
   res.json(topic);
 });
 
-app.delete('/api/topics/:id', requireAdmin, (req, res) => {
-  const topic = db.prepare("SELECT * FROM topics WHERE id=?").get(req.params.id);
-  if (!topic) return res.status(404).json({ error: 'Не найдено' });
+app.delete('/api/topics/:id', requireEditor, (req, res) => {
+  const t = db.prepare("SELECT * FROM topics WHERE id=?").get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Не найдено' });
+  // Only admin can delete, editor can only edit
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Удалять может только администратор' });
   db.prepare("DELETE FROM topics WHERE id=?").run(req.params.id);
   db.prepare("DELETE FROM comments WHERE topic_id=?").run(req.params.id);
-  addHistory(req.user.username, 'delete_topic', topic.title, null);
+  addHistory(req.user.username, 'delete_topic', t.title, null);
   io.emit('topic_deleted', req.params.id);
   res.json({ ok: true });
 });
 
-// ── Comments ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMMENTS
+// ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/topics/:id/comments', (req, res) => {
   res.json(db.prepare("SELECT * FROM comments WHERE topic_id=? ORDER BY created_at ASC").all(req.params.id));
 });
 
 app.post('/api/topics/:id/comments', requireAuth, (req, res) => {
+  // Guests cannot comment
+  if (req.user.role === 'guest') return res.status(403).json({ error: 'Гости не могут комментировать. Зарегистрируйтесь.' });
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Пустой комментарий' });
   const topic = db.prepare("SELECT id,title FROM topics WHERE id=?").get(req.params.id);
@@ -302,10 +332,8 @@ app.delete('/api/comments/:id', requireAdmin, (req, res) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'intex.html')));
 
-// ── Socket.io ─────────────────────────────────────────────────────────────────
-io.on('connection', socket => {
-  console.log('connected:', socket.id);
-});
+// ── Socket ────────────────────────────────────────────────────────────────────
+io.on('connection', socket => console.log('connected:', socket.id));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server on port ${PORT}`));
