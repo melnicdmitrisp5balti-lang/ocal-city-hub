@@ -12,21 +12,24 @@ const io = new Server(server, {
   }
 });
 
-// Статические файлы
-app.use(express.static(path.join(__dirname)));
+// ВАЖНО: правильный путь к статическим файлам
+app.use(express.static(__dirname));
 
-// Хранилище комнат в памяти
+// Главная страница
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Хранилище комнат
 const rooms = {};
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Присоединение к комнате
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
     socket.roomId = roomId;
     
-    // Отправляем текущие темы
     if (rooms[roomId]) {
       socket.emit('topics', rooms[roomId].topics);
     } else {
@@ -34,12 +37,10 @@ io.on('connection', (socket) => {
       socket.emit('topics', []);
     }
     
-    // Уведомляем других о новом пользователе
     socket.to(roomId).emit('user-joined', socket.id);
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  // Новая тема
   socket.on('new-topic', (data) => {
     const { roomId, topic } = data;
     if (!rooms[roomId]) {
@@ -50,12 +51,10 @@ io.on('connection', (socket) => {
     topic.date = new Date().toLocaleString('ru-RU');
     rooms[roomId].topics.unshift(topic);
     
-    // Отправляем всем в комнате
     io.to(roomId).emit('new-topic', topic);
     console.log(`New topic in room ${roomId}:`, topic.title);
   });
 
-  // Удаление темы
   socket.on('delete-topic', (data) => {
     const { roomId, topicId } = data;
     if (rooms[roomId]) {
@@ -64,7 +63,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Отключение
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
@@ -73,4 +71,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Static files from: ${__dirname}`);
 });
