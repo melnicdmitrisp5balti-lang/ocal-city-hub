@@ -4,12 +4,13 @@ const { Server } = require('socket.io');
 const path = require('path');
 const crypto = require('crypto');
 const { createClient } = require('@libsql/client');
+const https = require('https');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname)));
 
 // ── Database (Turso) ──────────────────────────────────────────────────────────
@@ -17,6 +18,11 @@ const db = createClient({
   url: process.env.TURSO_URL,
   authToken: process.env.TURSO_TOKEN,
 });
+
+// ── Cloudinary config ─────────────────────────────────────────────────────────
+const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+const API_KEY    = process.env.CLOUDINARY_API_KEY;
+const API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function hashPw(pw) {
@@ -76,6 +82,8 @@ async function initDB() {
       topic_id   TEXT NOT NULL,
       author     TEXT NOT NULL,
       content    TEXT NOT NULL,
+      file_url   TEXT,
+      file_type  TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS history (
@@ -96,6 +104,10 @@ async function initDB() {
   `);
 
   await run("DELETE FROM sessions WHERE created_at < datetime('now','-30 days')");
+
+  // Добавляем колонки если их нет (для существующих БД)
+  try { await run("ALTER TABLE comments ADD COLUMN file_url TEXT"); } catch(e) {}
+  try { await run("ALTER TABLE comments ADD COLUMN file_type TEXT"); } catch(e) {}
 
   const pp = await q1("SELECT value FROM settings WHERE key='panel_password'");
   if (!pp) await run("INSERT INTO settings (key,value) VALUES ('panel_password',?)", [hashPw('panel123')]);
@@ -158,6 +170,74 @@ function requireEditor(req, res, next) {
   });
 }
 
+// ── Cloudinary Upload ─────────────────────────────────────────────────────────
+async function uploadToCloudinary(base64Data, resourceType = 'auto') {
+  return new Promise((resolve, reject) => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = crypto.createHash('sha256')
+      .update(`timestamp=${timestamp}${API_SECRET}`)
+      .digest('hex');
+
+    const body = JSON.stringify({
+      file: base64Data,
+      timestamp,
+      api_key: API_KEY,
+      signature,
+      resource_type: resourceType,
+      folder: 'local-city-hub'
+    });
+
+    const options = {
+      hostname: 'api.cloudinary.com',
+      path: `/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.secure_url) resolve(parsed);
+          else reject(new Error(parsed.error?.message || 'Cloudinary error'));
+        } catch(e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── Upload endpoint ───────────────────────────────────────────────────────────
+app.post('/api/upload', requireAuth, async (req, res) => {
+  try {
+    const { data, type } = req.body; // data = base64, type = mime type
+    if (!data) return res.status(400).json({ error: 'Нет файла' });
+
+    // Проверяем размер (макс 10MB)
+    const sizeBytes = Buffer.byteLength(data, 'base64');
+    if (sizeBytes > 10 * 1024 * 1024) return res.status(400).json({ error: 'Файл слишком большой (макс 10MB)' });
+
+    const isImage = type?.startsWith('image/');
+    const resourceType = isImage ? 'image' : 'raw';
+
+    const result = await uploadToCloudinary(
+      `data:${type};base64,${data}`,
+      resourceType
+    );
+
+    res.json({ url: result.secure_url, type: isImage ? 'image' : 'file', original_type: type });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  AUTH ROUTES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,10 +293,8 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', requireAuth, async (req, res) => {
-  try {
-    await deleteSession(req.headers['x-token']);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  try { await deleteSession(req.headers['x-token']); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/me', requireAuth, (req, res) => {
@@ -366,16 +444,16 @@ app.get('/api/topics/:id/comments', async (req, res) => {
 app.post('/api/topics/:id/comments', requireAuth, async (req, res) => {
   try {
     if (req.user.role === 'guest') return res.status(403).json({ error: 'Гости не могут комментировать. Зарегистрируйтесь.' });
-    const { content } = req.body;
-    if (!content?.trim()) return res.status(400).json({ error: 'Пустой комментарий' });
+    const { content, file_url, file_type } = req.body;
+    if (!content?.trim() && !file_url) return res.status(400).json({ error: 'Пустой комментарий' });
     const topic = await q1("SELECT id,title FROM topics WHERE id=?", [req.params.id]);
     if (!topic) return res.status(404).json({ error: 'Тема не найдена' });
     const id = genId();
     const now = new Date().toLocaleString('ru-RU');
-    const comment = { id, topic_id: req.params.id, author: req.user.username, content: content.trim(), created_at: now };
-    await run("INSERT INTO comments (id,topic_id,author,content,created_at) VALUES (?,?,?,?,?)",
-      [id, req.params.id, req.user.username, content.trim(), now]);
-    await addHistory(req.user.username, 'comment', topic.title, content.trim().slice(0, 80));
+    const comment = { id, topic_id: req.params.id, author: req.user.username, content: content?.trim() || '', file_url: file_url || null, file_type: file_type || null, created_at: now };
+    await run("INSERT INTO comments (id,topic_id,author,content,file_url,file_type,created_at) VALUES (?,?,?,?,?,?,?)",
+      [id, req.params.id, req.user.username, content?.trim() || '', file_url || null, file_type || null, now]);
+    await addHistory(req.user.username, 'comment', topic.title, (content?.trim() || '[файл]').slice(0, 80));
     io.emit('comment_added', comment);
     res.json(comment);
   } catch (e) { res.status(500).json({ error: e.message }); }
