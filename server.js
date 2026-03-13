@@ -617,7 +617,7 @@ app.post('/api/admin/users/:id/prefix', requireAdmin, async (req, res) => {
     const clean = (prefix || '').slice(0, 20);
     const cleanColor = (color || '').slice(0, 30);
     const cleanColor2 = (color2 || '').slice(0, 30);
-    const cleanStyle = ['solid','glow','rgb','pulse','neon','fire'].includes(style) ? style : 'solid';
+    const cleanStyle = ['solid','glow','rgb','pulse','neon','fire','rainbow'].includes(style) ? style : 'solid';
     const u = await q1("SELECT * FROM users WHERE id=?", [req.params.id]);
     if (!u) return res.status(404).json({ error: 'Не найден' });
     await run("UPDATE users SET prefix=?, prefix_color=?, prefix_color2=?, prefix_style=? WHERE id=?", [clean, cleanColor, cleanColor2, cleanStyle, req.params.id]);

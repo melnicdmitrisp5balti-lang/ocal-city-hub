@@ -186,6 +186,8 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 @keyframes pfx-fire{0%{background:rgba(255,60,0,.3);box-shadow:0 0 6px #ff3c00,0 -2px 8px #ff8c00;text-shadow:0 0 6px #ffcc00}33%{background:rgba(255,120,0,.35);box-shadow:0 0 10px #ff7800,0 -3px 12px #ff4400;text-shadow:0 0 8px #ff8800}66%{background:rgba(255,80,0,.3);box-shadow:0 0 8px #ff5000,0 -2px 10px #ffaa00;text-shadow:0 0 6px #ffdd00}100%{background:rgba(255,60,0,.3);box-shadow:0 0 6px #ff3c00,0 -2px 8px #ff8c00;text-shadow:0 0 6px #ffcc00}}
 .pfx-gradient{border:1px solid transparent;animation:pfx-grad-border 4s linear infinite}
 @keyframes pfx-grad-border{0%,100%{border-color:var(--pfx-c1)88}50%{border-color:var(--pfx-c2,var(--pfx-c1))88}}
+.pfx-rainbow{border:1px solid transparent;color:#fff;font-weight:800;background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00d4ff,#b400ff) padding-box,linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00d4ff,#b400ff) border-box;background-size:200% 100%;animation:pfx-rainbow 2s linear infinite;-webkit-background-clip:padding-box,border-box;background-clip:padding-box,border-box;text-shadow:0 0 8px rgba(255,255,255,.5)}
+@keyframes pfx-rainbow{0%{background-position:0% 0%}100%{background-position:200% 0%}}
 
 /* Prefix editor modal */
 .pfx-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(10px);z-index:90;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s}
@@ -1176,11 +1178,12 @@ function renderPfxBadge(text, color, style) {
   if (!text) return '';
   const col = color || '#a78bfa';
   const st = style || 'solid';
-  const cssVar = `--pfx-c1:${col}`;
-  if (st === 'rgb' || st === 'fire') {
+  // These styles have their own animation colors, no need for CSS var
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  if (noColorStyles.includes(st)) {
     return `<span class="pfx pfx-${st}">${esc(text)}</span>`;
   }
-  return `<span class="pfx pfx-${st}" style="${cssVar}">${esc(text)}</span>`;
+  return `<span class="pfx pfx-${st}" style="--pfx-c1:${col}">${esc(text)}</span>`;
 }
 
 // ── Prefix modal state ────────────────────────────────────────────────────────
@@ -1219,7 +1222,10 @@ function selectPfxStyle(style, btn) {
   pfxEditStyle = style;
   document.querySelectorAll('#pfxStyleGrid .pfx-style-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  // Show/hide second color for gradient
+  // Hide color pickers for styles that don't use custom color
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  const colorBlock = document.getElementById('pfxColorBlock');
+  if (colorBlock) colorBlock.style.opacity = noColorStyles.includes(style) ? '0.35' : '1';
   document.getElementById('pfxColor2Wrap').style.display = style === 'gradient' ? '' : 'none';
   updatePfxPreview();
 }
@@ -1232,8 +1238,9 @@ function updatePfxPreview() {
   const prev = document.getElementById('pfxPreview');
   prev.className = 'pfx pfx-' + st;
   prev.textContent = text;
-  if (st === 'rgb' || st === 'fire') {
-    prev.style = '';
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  if (noColorStyles.includes(st)) {
+    prev.removeAttribute('style');
   } else {
     prev.style.cssText = '--pfx-c1:' + col + ';--pfx-c2:' + col2;
   }
@@ -1674,7 +1681,7 @@ loadChatHistory();
     <div style="margin-bottom:16px">
       <label class="flabel">Текст префикса</label>
       <input id="pfxText" class="fi" placeholder="например: 🔥 Босс" maxlength="20" style="margin-bottom:10px">
-      <div style="display:flex;gap:10px;align-items:center">
+      <div id="pfxColorBlock" style="display:flex;gap:10px;align-items:center;transition:.2s">
         <div style="flex:1">
           <label class="flabel">Основной цвет</label>
           <input type="color" id="pfxColor" value="#a78bfa" style="width:100%;height:36px;border:1px solid var(--border);border-radius:9px;background:none;cursor:pointer;padding:3px 6px">
@@ -1713,6 +1720,10 @@ loadChatHistory();
         <div class="pfx-style-btn" data-style="fire" onclick="selectPfxStyle('fire',this)">
           <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Огонь</div>
           <span class="pfx pfx-fire">Пример</span>
+        </div>
+        <div class="pfx-style-btn" data-style="rainbow" onclick="selectPfxStyle('rainbow',this)">
+          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Радуга</div>
+          <span class="pfx pfx-rainbow">Пример</span>
         </div>
       </div>
     </div>
