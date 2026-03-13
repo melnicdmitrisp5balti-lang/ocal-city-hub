@@ -174,17 +174,17 @@ function requireEditor(req, res, next) {
 async function uploadToCloudinary(base64Data, resourceType = 'auto') {
   return new Promise((resolve, reject) => {
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = crypto.createHash('sha256')
-      .update(`timestamp=${timestamp}${API_SECRET}`)
-      .digest('hex');
+    const folder = 'local-city-hub';
+    // Подпись: параметры строго в алфавитном порядке (без file, api_key, resource_type)
+    const signString = `folder=${folder}&timestamp=${timestamp}${API_SECRET}`;
+    const signature = crypto.createHash('sha256').update(signString).digest('hex');
 
     const body = JSON.stringify({
       file: base64Data,
       timestamp,
       api_key: API_KEY,
       signature,
-      resource_type: resourceType,
-      folder: 'local-city-hub'
+      folder,
     });
 
     const options = {
