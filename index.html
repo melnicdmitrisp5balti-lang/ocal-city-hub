@@ -1357,10 +1357,7 @@ function appendChatMsg(msg) {
   div.innerHTML = `
     <div style="font-size:10px;color:var(--muted);margin-bottom:2px;font-family:'Syne',sans-serif;font-weight:600;padding:0 4px;display:flex;align-items:center;gap:4px">${isMe?'':prefixHtml+esc(msg.author)} ${delBtn}</div>
     ${inner}
-    <div style="display:flex;align-items:center;gap:6px">
-      <span class="chat-meta">\${msg.created_at}</span>
-      \${isAdmin2?`<button onclick="deleteChatMsg('\${msg.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;padding:0" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">✕</button>`:''}
-    </div>\`;
+    <div class="chat-meta">${msg.created_at}</div>`;
 
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
