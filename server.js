@@ -528,14 +528,30 @@ app.get('/api/admin/settings', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/users/:id/prefix', requireAdmin, async (req, res) => {
   try {
-    const { prefix } = req.body;
-    const clean = (prefix || '').slice(0, 20);
+    const { prefix, color, color2, style } = req.body;
+    const clean      = (prefix || '').slice(0, 20);
+    const cleanColor = (color  || '').slice(0, 30);
+    const cleanColor2= (color2 || '').slice(0, 30);
+    const validStyles = ['solid','glow','rgb','pulse','neon','fire','rainbow'];
+    const cleanStyle = validStyles.includes(style) ? style : 'solid';
     const u = await q1("SELECT * FROM users WHERE id=?", [req.params.id]);
     if (!u) return res.status(404).json({ error: 'Не найден' });
-    await run("UPDATE users SET prefix=? WHERE id=?", [clean, req.params.id]);
-    await run("UPDATE sessions SET prefix=? WHERE username=?", [clean, u.username]);
-    io.emit('user_updated', { username: u.username, role: u.role, prefix: clean });
-    await addHistory(req.user.username, 'set_prefix', u.username, clean || '(убран)');
+    await run(
+      "UPDATE users SET prefix=?, prefix_color=?, prefix_color2=?, prefix_style=? WHERE id=?",
+      [clean, cleanColor, cleanColor2, cleanStyle, req.params.id]
+    );
+    await run(
+      "UPDATE sessions SET prefix=?, prefix_color=?, prefix_style=? WHERE username=?",
+      [clean, cleanColor, cleanStyle, u.username]
+    );
+    io.emit('user_prefix_updated', {
+      username: u.username,
+      prefix:   clean,
+      color:    cleanColor,
+      color2:   cleanColor2,
+      style:    cleanStyle
+    });
+    await addHistory(req.user.username, 'set_prefix', u.username, clean ? `${clean} (${cleanStyle})` : '(убран)');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
