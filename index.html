@@ -15,6 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -211,7 +212,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .pg-editor-col{width:50%;display:flex;flex-direction:column;border-right:1px solid var(--border)}
 .pg-preview-col{flex:1;display:flex;flex-direction:column;background:#fff}
 .pg-editor-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(11,15,26,.9)}
-.pg-editor{flex:1;resize:none;background:#080c18;color:#e2e8f0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:13px;line-height:1.7;padding:16px;border:none;outline:none;overflow-y:auto;tab-size:2}
+.pg-editor{flex:1;overflow:hidden}
 .pg-preview-col iframe{flex:1;border:none;width:100%;height:100%}
 .pg-lang-badge{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:5px}
 @media(max-width:640px){
@@ -241,6 +242,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .db-copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:1px 4px;border-radius:3px;font-size:10px;transition:.15s}
 .db-copy-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
 </head>
 <body>
 <div class="bg-scene"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
@@ -464,7 +466,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
           <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.13);border-radius:13px;padding:24px;text-align:center">
             <div style="font-size:32px;margin-bottom:10px">🗄️</div>
             <div class="syne" style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">База данных</div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Введите пароль БД для доступа<br><span style="font-size:10px;color:var(--muted);opacity:.6">По умолчанию: db1234</span></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Введите пароль БД для доступа<br><span style="font-size:10px;color:var(--muted);opacity:.6"></span></div>
             <input id="dbPwInput" class="fi" type="password" placeholder="Пароль БД" style="margin-bottom:10px;text-align:center;letter-spacing:.1em" onkeydown="if(event.key==='Enter')verifyDbAccess()">
             <p id="dbAuthErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
             <button onclick="verifyDbAccess()" class="btn btn-cyan btn-full">
@@ -1460,25 +1462,112 @@ async function deleteChatMsg(id) {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  PLAYGROUND
+//  PLAYGROUND (Monaco Editor)
 // ══════════════════════════════════════════════════════════════════════════════
 const pgCode = { html: '', css: '', js: '' };
 let pgCurrentTab = 'html';
 let pgAutoRunEnabled = true;
 let pgAutoRunTimer = null;
+let monacoEditor = null;
+let monacoReady = false;
 
+const pgLangMap = { html: 'html', css: 'css', js: 'javascript' };
 const pgLangColors = {
   html: { bg: 'rgba(251,191,36,.15)', color: 'var(--amber)', label: 'HTML' },
   css:  { bg: 'rgba(103,232,249,.12)', color: 'var(--cyan)',  label: 'CSS'  },
   js:   { bg: 'rgba(167,139,250,.12)', color: 'var(--violet)', label: 'JS'  },
 };
 
+function initMonaco() {
+  if (monacoReady) return;
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+  require(['vs/editor/editor.main'], function() {
+    // Define dark theme matching site style
+    monaco.editor.defineTheme('starosta', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'tag', foreground: '67e8f9' },
+        { token: 'attribute.name', foreground: 'a78bfa' },
+        { token: 'attribute.value', foreground: '4ade80' },
+        { token: 'string', foreground: '4ade80' },
+        { token: 'keyword', foreground: 'fb7185' },
+        { token: 'comment', foreground: '475569', fontStyle: 'italic' },
+        { token: 'number', foreground: 'fbbf24' },
+        { token: 'type', foreground: '2dd4bf' },
+      ],
+      colors: {
+        'editor.background': '#080c18',
+        'editor.foreground': '#e2e8f0',
+        'editorLineNumber.foreground': '#334155',
+        'editorLineNumber.activeForeground': '#67e8f9',
+        'editor.lineHighlightBackground': '#0d1120',
+        'editorCursor.foreground': '#67e8f9',
+        'editor.selectionBackground': '#1e3a5f',
+        'editorIndentGuide.background': '#1e293b',
+        'editorIndentGuide.activeBackground': '#334155',
+        'editorWidget.background': '#0d1120',
+        'editorSuggestWidget.background': '#0d1120',
+        'editorSuggestWidget.border': '#1e3a5f',
+        'editorSuggestWidget.selectedBackground': '#1e3a5f',
+        'input.background': '#0d1120',
+        'scrollbarSlider.background': '#1e293b88',
+        'scrollbarSlider.hoverBackground': '#33415588',
+      }
+    });
+
+    monacoEditor = monaco.editor.create(document.getElementById('pgMonacoEditor'), {
+      value: pgCode[pgCurrentTab],
+      language: pgLangMap[pgCurrentTab],
+      theme: 'starosta',
+      fontSize: 14,
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+      fontLigatures: true,
+      lineHeight: 22,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 2,
+      insertSpaces: true,
+      wordWrap: 'on',
+      suggestOnTriggerCharacters: true,
+      quickSuggestions: { other: true, comments: false, strings: true },
+      acceptSuggestionOnEnter: 'on',
+      snippetSuggestions: 'top',
+      formatOnPaste: true,
+      formatOnType: true,
+      bracketPairColorization: { enabled: true },
+      renderWhitespace: 'selection',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorSmoothCaretAnimation: 'on',
+      padding: { top: 16, bottom: 16 },
+    });
+
+    // Auto-run on change
+    monacoEditor.onDidChangeModelContent(() => {
+      pgCode[pgCurrentTab] = monacoEditor.getValue();
+      if (!pgAutoRunEnabled) return;
+      clearTimeout(pgAutoRunTimer);
+      pgAutoRunTimer = setTimeout(pgRun, 700);
+    });
+
+    monacoReady = true;
+    console.log('Monaco Editor ready');
+  });
+}
+
 function openPlayground() {
   document.getElementById('playgroundWin').classList.add('open');
-  setTimeout(() => document.getElementById('pgEditor').focus(), 300);
+  if (!monacoReady) {
+    setTimeout(initMonaco, 100);
+  } else {
+    setTimeout(() => { monacoEditor && monacoEditor.focus(); }, 300);
+  }
 }
+
 function closePlayground() {
-  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
   document.getElementById('playgroundWin').classList.remove('open');
 }
 
@@ -1492,6 +1581,7 @@ function pgSetMode(mode) {
     pvCol.style.display = 'none';
     btnEd.classList.add('active');
     btnPv.classList.remove('active');
+    setTimeout(() => monacoEditor && monacoEditor.layout(), 50);
   } else {
     pgRun();
     edCol.style.display = 'none';
@@ -1502,57 +1592,39 @@ function pgSetMode(mode) {
 }
 
 function switchPgTab(tab) {
-  // Save current
-  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
   pgCurrentTab = tab;
 
-  // Load new tab content
-  const editor = document.getElementById('pgEditor');
-  editor.value = pgCode[tab];
-  editor.placeholder = tab === 'html' ? 'Введите HTML код...' : tab === 'css' ? 'Введите CSS стили...' : 'Введите JavaScript код...';
-
-  // Update tab active state
   ['html','css','js'].forEach(t => {
-    document.getElementById('pgTab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle('active', t === tab);
+    const id = 'pgTab' + t.charAt(0).toUpperCase() + t.slice(1);
+    document.getElementById(id)?.classList.toggle('active', t === tab);
   });
 
-  // Update lang badge
   const lc = pgLangColors[tab];
   const badge = document.getElementById('pgLangLabel');
   badge.textContent = lc.label;
   badge.style.background = lc.bg;
   badge.style.color = lc.color;
-}
 
-function pgKeydown(e) {
-  // Tab key inserts 2 spaces
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const ta = e.target;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
-    ta.selectionStart = ta.selectionEnd = start + 2;
-    pgAutoRun();
+  if (monacoEditor && monacoReady) {
+    const model = monaco.editor.createModel(pgCode[tab], pgLangMap[tab]);
+    monacoEditor.setModel(model);
+    monacoEditor.focus();
   }
 }
 
-function pgAutoRun() {
-  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
-  if (!pgAutoRunEnabled) return;
-  clearTimeout(pgAutoRunTimer);
-  pgAutoRunTimer = setTimeout(pgRun, 600);
-}
+function pgKeydown(e) { /* handled by Monaco */ }
+function pgAutoRun() { /* handled by Monaco onDidChangeModelContent */ }
 
 function pgToggleAutoRun() {
   pgAutoRunEnabled = !pgAutoRunEnabled;
-  document.getElementById('pgAutoRunLabel').textContent = pgAutoRunEnabled ? '● авто-обновление' : '○ авто-обновление';
+  document.getElementById('pgAutoRunLabel').textContent = pgAutoRunEnabled ? '● авто' : '○ авто';
   document.getElementById('pgAutoRunLabel').style.color = pgAutoRunEnabled ? 'var(--teal)' : 'var(--muted)';
   document.getElementById('pgAutoRunBtn').textContent = pgAutoRunEnabled ? 'Выкл' : 'Вкл';
 }
 
 function pgBuildDoc() {
-  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -1560,23 +1632,6 @@ function pgBuildDoc() {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 ${pgCode.css}
-
-/* ── DB Viewer ──────────────────────────────────────────────────────────────── */
-.db-table-btn{font-size:10px!important;padding:4px 10px!important}
-.db-table-btn.active-db{border-color:rgba(103,232,249,.4)!important;color:var(--cyan)!important;background:rgba(103,232,249,.08)!important}
-#dbTable th{padding:8px 10px;text-align:left;font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);white-space:nowrap}
-#dbTable td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--soft);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top}
-#dbTable tr:last-child td{border-bottom:none}
-#dbTable tr:hover td{background:rgba(103,232,249,.03)}
-#dbTable td.db-id{color:var(--muted);font-family:'Syne',sans-serif;font-size:10px}
-#dbTable td.db-role-admin{color:var(--amber);font-weight:700;font-family:'Syne',sans-serif}
-#dbTable td.db-role-editor{color:var(--violet);font-family:'Syne',sans-serif}
-#dbTable td.db-role-user{color:var(--cyan);font-family:'Syne',sans-serif}
-#dbTable td.db-hash{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);max-width:120px}
-#dbTable td.db-bool-yes{color:var(--green);font-weight:700}
-#dbTable td.db-bool-no{color:var(--muted)}
-.db-copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:1px 4px;border-radius:3px;font-size:10px;transition:.15s}
-.db-copy-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
 </style>
 </head>
 <body>
@@ -1585,7 +1640,7 @@ ${pgCode.html}
 try {
 ${pgCode.js}
 } catch(e) {
-  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#ff3b3b;color:#fff;font-family:monospace;font-size:13px;z-index:9999">⚠ ' + e.message + '</div>');
+  document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#ff3b3b;color:#fff;font-family:monospace;font-size:13px;z-index:9999">⚠ '+e.message+'</div>');
 }
 <\/script>
 </body>
@@ -1593,14 +1648,11 @@ ${pgCode.js}
 }
 
 function pgRun() {
-  const iframe = document.getElementById('pgPreview');
-  const doc = pgBuildDoc();
-  iframe.srcdoc = doc;
+  document.getElementById('pgPreview').srcdoc = pgBuildDoc();
 }
 
 function pgOpenNewTab() {
-  const doc = pgBuildDoc();
-  const blob = new Blob([doc], { type: 'text/html' });
+  const blob = new Blob([pgBuildDoc()], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -1609,729 +1661,23 @@ function pgOpenNewTab() {
 function pgClear() {
   if (!confirm('Очистить все вкладки?')) return;
   pgCode.html = ''; pgCode.css = ''; pgCode.js = '';
-  document.getElementById('pgEditor').value = '';
+  if (monacoEditor) monacoEditor.setValue('');
   pgRun();
 }
 
 function pgInsertSnippet() {
   const snippets = {
-    html: `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <title>Мой сайт</title>
-</head>
-<body>
-  <h1>Привет, мир!</h1>
-  <p>Начни редактировать здесь</p>
-</body>
-</html>`,
-    css: `* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
-  padding: 20px;
-}
-h1 { color: #67e8f9; margin-bottom: 10px; }`,
-    js: `// JavaScript пример
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Страница загружена');
-  
-  const h1 = document.querySelector('h1');
-  if (h1) {
-    h1.addEventListener('click', () => {
-      h1.style.color = '#' + Math.floor(Math.random()*16777215).toString(16);
-    });
-  }
-});`,
+    html: `<!DOCTYPE html>\n<html lang="ru">\n<head>\n  <meta charset="UTF-8">\n  <title>Мой сайт</title>\n</head>\n<body>\n  <h1>Привет, мир!</h1>\n  <p>Начни редактировать здесь</p>\n</body>\n</html>`,
+    css:  `* { box-sizing: border-box; margin: 0; padding: 0; }\nbody {\n  font-family: 'Segoe UI', sans-serif;\n  background: #0f172a;\n  color: #e2e8f0;\n  padding: 20px;\n}\nh1 { color: #67e8f9; margin-bottom: 10px; }`,
+    js:   `document.addEventListener('DOMContentLoaded', () => {\n  console.log('Страница загружена');\n\n  const h1 = document.querySelector('h1');\n  if (h1) {\n    h1.addEventListener('click', () => {\n      h1.style.color = '#' + Math.floor(Math.random()*16777215).toString(16);\n    });\n  }\n});`,
   };
-  const ta = document.getElementById('pgEditor');
-  ta.value = snippets[pgCurrentTab];
-  pgCode[pgCurrentTab] = ta.value;
+  const val = snippets[pgCurrentTab];
+  pgCode[pgCurrentTab] = val;
+  if (monacoEditor) {
+    monacoEditor.setValue(val);
+    monacoEditor.focus();
+  }
   if (pgAutoRunEnabled) pgRun();
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  DATABASE VIEWER
-// ══════════════════════════════════════════════════════════════════════════════
-let dbCurrentTable = 'users';
-let dbRawRows = [];
-
-const DB_TABLES = {
-  users:    { endpoint: '/api/admin/db/users',    label: 'Пользователи' },
-  topics:   { endpoint: '/api/admin/db/topics',   label: 'Темы' },
-  comments: { endpoint: '/api/admin/db/comments', label: 'Комментарии' },
-  chat:     { endpoint: '/api/admin/db/chat',     label: 'Чат' },
-  invites:  { endpoint: '/api/admin/db/invites',  label: 'Инвайты' },
-};
-
-async function verifyDbAccess() {
-  const pw = document.getElementById('dbPwInput').value;
-  const errEl = document.getElementById('dbAuthErr');
-  errEl.classList.add('hidden');
-  if (!pw) { errEl.textContent = 'Введите пароль'; errEl.classList.remove('hidden'); return; }
-  try {
-    await api('POST', '/api/admin/db/auth', { password: pw });
-    document.getElementById('dbAuthBox').classList.add('hidden');
-    document.getElementById('dbContent').classList.remove('hidden');
-    document.getElementById('dbPwInput').value = '';
-    dbLoad('users');
-  } catch(e) {
-    errEl.textContent = 'Неверный пароль БД';
-    errEl.classList.remove('hidden');
-    document.getElementById('dbPwInput').value = '';
-    document.getElementById('dbPwInput').focus();
-  }
-}
-
-function dbResetAuth() {
-  document.getElementById('dbAuthBox').classList.remove('hidden');
-  document.getElementById('dbContent').classList.add('hidden');
-  document.getElementById('dbPwInput').value = '';
-  document.getElementById('dbAuthErr').classList.add('hidden');
-}
-
-async function changeDbPassword() {
-  const p1 = document.getElementById('dbNewPw1').value;
-  const p2 = document.getElementById('dbNewPw2').value;
-  if (!p1) { showToast('Введите новый пароль', true); return; }
-  if (p1 !== p2) { showToast('Пароли не совпадают', true); return; }
-  if (p1.length < 4) { showToast('Минимум 4 символа', true); return; }
-  try {
-    await api('POST', '/api/admin/db/change-password', { newPassword: p1 });
-    document.getElementById('dbNewPw1').value = '';
-    document.getElementById('dbNewPw2').value = '';
-    showToast('Пароль БД изменён ✦');
-  } catch(e) { showToast(e.message, true); }
-}
-
-async function dbLoad(table) {
-  dbCurrentTable = table;
-  // Update active button
-  document.querySelectorAll('.db-table-btn').forEach(b => b.classList.remove('active-db'));
-  const activeBtn = document.getElementById('dbBtn' + cap(table));
-  if (activeBtn) activeBtn.classList.add('active-db');
-  document.getElementById('dbSearch').value = '';
-  document.getElementById('dbStats').textContent = 'Загрузка...';
-  document.getElementById('dbHead').innerHTML = '';
-  document.getElementById('dbBody').innerHTML = '';
-  document.getElementById('dbEmpty').style.display = 'none';
-  try {
-    const rows = await api('GET', DB_TABLES[table].endpoint);
-    dbRawRows = rows;
-    dbRender(rows);
-  } catch(e) {
-    document.getElementById('dbStats').textContent = 'Ошибка: ' + e.message;
-  }
-}
-
-function dbFilter() {
-  const q = document.getElementById('dbSearch').value.toLowerCase();
-  if (!q) { dbRender(dbRawRows); return; }
-  const filtered = dbRawRows.filter(row =>
-    Object.values(row).some(v => String(v||'').toLowerCase().includes(q))
-  );
-  dbRender(filtered);
-}
-
-function dbRender(rows) {
-  const head = document.getElementById('dbHead');
-  const body = document.getElementById('dbBody');
-  const stats = document.getElementById('dbStats');
-  const empty = document.getElementById('dbEmpty');
-
-  if (!rows.length) {
-    head.innerHTML = ''; body.innerHTML = '';
-    empty.style.display = 'block';
-    stats.textContent = 'Записей: 0';
-    return;
-  }
-  empty.style.display = 'none';
-  stats.textContent = `Записей: ${rows.length} • Таблица: ${DB_TABLES[dbCurrentTable]?.label || dbCurrentTable}`;
-
-  // Build columns - filter out huge fields for display
-  const allCols = Object.keys(rows[0]);
-  // Put important cols first
-  const priority = ['id','username','role','prefix','created_at','used','used_by','author','title','content','text','action','actor'];
-  const cols = [...priority.filter(p => allCols.includes(p)), ...allCols.filter(c => !priority.includes(c))];
-
-  // Header
-  head.innerHTML = '<tr>' + cols.map(col =>
-    `<th>${esc(col)}</th>`
-  ).join('') + '</tr>';
-
-  // Rows
-  body.innerHTML = rows.map(row => {
-    return '<tr>' + cols.map(col => {
-      const val = row[col];
-      return `<td class="${dbCellClass(col, val)}" title="${esc(String(val||''))}">${dbCellHtml(col, val)}</td>`;
-    }).join('') + '</tr>';
-  }).join('');
-}
-
-function dbCellClass(col, val) {
-  if (col === 'id') return 'db-id';
-  if (col === 'password_hash' || col === 'prefix_color') return 'db-hash';
-  if (col === 'role') {
-    if (val === 'admin') return 'db-role-admin';
-    if (val === 'editor') return 'db-role-editor';
-    return 'db-role-user';
-  }
-  if (col === 'used' || col === 'pinned') return val ? 'db-bool-yes' : 'db-bool-no';
-  return '';
-}
-
-function dbCellHtml(col, val) {
-  if (val === null || val === undefined || val === '') return '<span style="color:var(--muted);font-size:10px">null</span>';
-
-  // Plain password - show with copy button
-  if (col === 'password_plain') {
-    if (!val) return '<span style="color:var(--muted);font-size:10px">не сохранён</span>';
-    return `<span style="font-family:'JetBrains Mono',monospace;color:var(--green);font-size:12px">${esc(String(val))}</span>
-      <button class="db-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(String(val))}').then(()=>showToast('Скопировано ✦'))" title="Скопировать пароль">⧉</button>`;
-  }
-  // Password hash - show very short, not important
-  if (col === 'password_hash') {
-    const short = String(val).slice(0, 8) + '…';
-    return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)" title="${esc(String(val))}">${esc(short)}</span>`;
-  }
-
-  // Blocks / JSON - show compact
-  if (col === 'blocks' || col === 'detail') {
-    const str = String(val);
-    const short = str.length > 40 ? str.slice(0, 40) + '…' : str;
-    return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)" title="${esc(str)}">${esc(short)}</span>`;
-  }
-
-  // Bool fields
-  if (col === 'used' || col === 'pinned') {
-    return val ? '<span style="color:var(--green)">✓ Да</span>' : '<span style="color:var(--muted)">✗ Нет</span>';
-  }
-
-  // Role badges
-  if (col === 'role') {
-    const colors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
-    const labels = { admin:'Админ', editor:'Редактор', user:'Участник', guest:'Гость' };
-    const col2 = colors[val] || 'var(--soft)';
-    return `<span style="background:${col2}22;color:${col2};border:1px solid ${col2}44;padding:1px 6px;border-radius:4px;font-family:'Syne',sans-serif;font-size:10px;font-weight:700">${labels[val]||esc(val)}</span>`;
-  }
-
-  // Long text - truncate
-  const str = String(val);
-  if (str.length > 50) {
-    return `<span title="${esc(str)}">${esc(str.slice(0, 50))}…</span>`;
-  }
-  return esc(str);
-}
-// ── Utils ─────────────────────────────────────────────────────────────────────
-function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
-function hlText(text,q){if(!q)return esc(text);return esc(text).replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');}
-function copyText(t){navigator.clipboard.writeText(t).then(()=>showToast('Скопировано ✦'));}
-
-let _tt;
-function showToast(msg,err=false){
-  document.getElementById('toastMsg').textContent=msg;
-  const ico=document.getElementById('toastIcon');
-  ico.textContent=err?'✕':'✦'; ico.style.color=err?'var(--rose)':'var(--cyan)';
-  const t=document.getElementById('toast');
-  t.style.borderColor=err?'rgba(251,113,133,.35)':'rgba(103,232,249,.25)';
-  t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),3200);
-}
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  CHAT
-// ══════════════════════════════════════════════════════════════════════════════
-let chatOpen = false;
-let chatAttach = null; // {base64, type, name}
-let mediaRecorder = null;
-let audioChunks = [];
-let recInterval = null;
-let recSeconds = 0;
-let chatUnreadCount = 0;
-
-// Socket chat events
-try {
-  socket.on('chat_message', msg => {
-    appendChatMsg(msg);
-    if (!chatOpen) {
-      chatUnreadCount++;
-      const el = document.getElementById('chatUnread');
-      el.textContent = chatUnreadCount > 9 ? '9+' : chatUnreadCount;
-      el.classList.remove('hidden');
-    }
-  });
-} catch(e) {}
-
-function toggleChat() {
-  chatOpen = !chatOpen;
-  document.getElementById('chatWin').classList.toggle('open', chatOpen);
-  if (chatOpen) {
-    chatUnreadCount = 0;
-    document.getElementById('chatUnread').classList.add('hidden');
-    setTimeout(() => {
-      const msgs = document.getElementById('chatMsgs');
-      msgs.scrollTop = msgs.scrollHeight;
-      document.getElementById('chatInput').focus();
-    }, 100);
-  }
-}
-
-function autoResizeChatTa(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
-}
-
-function chatKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
-}
-
-async function sendChatMessage() {
-  const inp = document.getElementById('chatInput');
-  const text = inp.value.trim();
-  if (!text && !chatAttach) return;
-  if (!currentUser) return;
-
-  let file_url = null, file_type = null;
-  if (chatAttach) {
-    try {
-      showToast('Загружаю...');
-      const result = await uploadFile(chatAttach.base64, chatAttach.mimeType);
-      file_url = result.url;
-      file_type = result.type;
-    } catch(e) { showToast(e.message, true); return; }
-  }
-
-  const msg = {
-    id: genChatId(),
-    author: currentUser.username,
-    prefix: currentUser.prefix || '',
-    text,
-    file_url,
-    file_type,
-    voice_url: null,
-    voice_duration: null,
-    created_at: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
-  };
-
-  try {
-    await fetch('/api/chat', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','x-token':token||''},
-      body: JSON.stringify(msg)
-    });
-  } catch(e) {}
-
-  inp.value = ''; inp.style.height = 'auto';
-  clearChatAttach();
-}
-
-function genChatId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,5);
-}
-
-function handleChatFile(event) {
-  const file = event.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    chatAttach = { base64: reader.result.split(',')[1], mimeType: file.type, name: file.name };
-    const prev = document.getElementById('chatAttachPreview');
-    document.getElementById('chatAttachName').textContent = '📷 ' + file.name;
-    prev.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-  event.target.value = '';
-}
-
-function clearChatAttach() {
-  chatAttach = null;
-  document.getElementById('chatAttachPreview').style.display = 'none';
-}
-
-// ── Voice recording ───────────────────────────────────────────────────────────
-async function toggleVoiceRecord() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    stopRecording();
-  } else {
-    await startRecording();
-  }
-}
-
-async function startRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      stream.getTracks().forEach(t => t.stop());
-      await sendVoiceMessage(blob, recSeconds);
-    };
-    mediaRecorder.start(100);
-    recSeconds = 0;
-    document.getElementById('voiceBtn').classList.add('recording');
-    document.getElementById('recTimerRow').style.display = 'block';
-    recInterval = setInterval(() => {
-      recSeconds++;
-      const m = Math.floor(recSeconds / 60), s = recSeconds % 60;
-      document.getElementById('recTimerLabel').textContent = `● ${m}:${String(s).padStart(2,'0')}`;
-      if (recSeconds >= 120) stopRecording(); // макс 2 мин
-    }, 1000);
-  } catch(e) {
-    showToast('Нет доступа к микрофону', true);
-  }
-}
-
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-  }
-  clearInterval(recInterval);
-  document.getElementById('voiceBtn').classList.remove('recording');
-  document.getElementById('recTimerRow').style.display = 'none';
-}
-
-async function sendVoiceMessage(blob, duration) {
-  if (!currentUser) return;
-  showToast('Отправляю голосовое...');
-  try {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result.split(',')[1];
-      const result = await uploadFile(base64, 'audio/webm');
-      const msg = {
-        id: genChatId(),
-        author: currentUser.username,
-        text: '',
-        file_url: null,
-        file_type: null,
-        voice_url: result.url,
-        voice_duration: duration,
-        created_at: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
-      };
-      await fetch('/api/chat', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','x-token':token||''},
-        body: JSON.stringify(msg)
-      });
-      showToast('Голосовое отправлено ✦');
-    };
-    reader.readAsDataURL(blob);
-  } catch(e) { showToast(e.message, true); }
-}
-
-// ── Render message ────────────────────────────────────────────────────────────
-function appendChatMsg(msg) {
-  const box = document.getElementById('chatMsgs'); if (!box) return;
-  const isMe = msg.author === currentUser?.username;
-  const div = document.createElement('div');
-  div.className = 'chat-msg ' + (isMe ? 'me' : 'them');
-
-
-  let inner = '';
-
-  if (msg.voice_url) {
-    const dur = msg.voice_duration || 0;
-    const m = Math.floor(dur/60), s = dur%60;
-    const durStr = `${m}:${String(s).padStart(2,'0')}`;
-    const bars = Array.from({length:20}, (_,i) => {
-      const h = 6 + Math.floor(Math.sin(i*0.8+1)*8 + Math.random()*10);
-      return `<span style="height:${h}px" id="vbar-${msg.id}-${i}"></span>`;
-    }).join('');
-    inner = `<div class="chat-bubble voice-bubble ${isMe?'':''}">
-      <button class="voice-play" onclick="playVoice('${msg.id}','${msg.voice_url}',${dur},this)" title="Воспроизвести">
-        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      </button>
-      <div class="voice-waveform" id="vwave-${msg.id}">${bars}</div>
-      <span class="voice-dur" id="vdur-${msg.id}">${durStr}</span>
-    </div>`;
-  } else if (msg.file_url && msg.file_type === 'image') {
-    inner = `<div class="chat-bubble" style="padding:6px">
-      <img src="${esc(msg.file_url)}" class="chat-img-preview" onclick="window.open('${esc(msg.file_url)}','_blank')">
-      ${msg.text ? `<div style="margin-top:5px;font-size:13px">${esc(msg.text)}</div>` : ''}
-    </div>`;
-  } else {
-    inner = `<div class="chat-bubble">${esc(msg.text||'')}</div>`;
-  }
-
-  const pfx = getPrefix(msg.author);
-  const prefixHtml = pfx.text ? renderPfxBadge(pfx.text, pfx.color, pfx.style) : '';
-  const isAdminUser = currentUser?.role === 'admin';
-  const delBtn = isAdminUser ? `<button onclick="deleteChatMsg('${msg.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;border-radius:4px;opacity:0;transition:.15s" class="chat-del-btn" onmouseover="this.style.color='var(--rose)';this.style.opacity='1'" onmouseout="this.style.color='var(--muted)';this.style.opacity='0'"><svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>` : '';
-  div.id = 'chatmsg-' + msg.id;
-  div.innerHTML = `
-    <div style="font-size:10px;color:var(--muted);margin-bottom:2px;font-family:'Syne',sans-serif;font-weight:600;padding:0 4px;display:flex;align-items:center;gap:4px">${isMe?'':prefixHtml+esc(msg.author)} ${delBtn}</div>
-    ${inner}
-    <div class="chat-meta">${msg.created_at}</div>`;
-
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-// ── Voice playback ────────────────────────────────────────────────────────────
-const voicePlayers = {};
-function playVoice(msgId, url, totalDur, btn) {
-  if (voicePlayers[msgId]) {
-    const p = voicePlayers[msgId];
-    if (!p.paused) { p.pause(); setVoiceBtn(btn, false); return; }
-    p.play(); setVoiceBtn(btn, true);
-    animateVoice(msgId, p, totalDur);
-    return;
-  }
-  const audio = new Audio(url);
-  voicePlayers[msgId] = audio;
-  audio.play();
-  setVoiceBtn(btn, true);
-  animateVoice(msgId, audio, totalDur);
-  audio.onended = () => {
-    setVoiceBtn(btn, false);
-    resetVoiceWave(msgId, totalDur);
-  };
-}
-function setVoiceBtn(btn, playing) {
-  btn.innerHTML = playing
-    ? '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
-    : '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-}
-function animateVoice(msgId, audio, totalDur) {
-  const wave = document.getElementById('vwave-'+msgId);
-  const durEl = document.getElementById('vdur-'+msgId);
-  const bars = wave ? Array.from(wave.querySelectorAll('span')) : [];
-  const total = totalDur || 1;
-  const tick = setInterval(() => {
-    if (!audio || audio.paused || audio.ended) { clearInterval(tick); return; }
-    const progress = audio.currentTime / total;
-    const activeBars = Math.floor(progress * bars.length);
-    bars.forEach((b,i) => b.classList.toggle('active', i < activeBars));
-    const rem = Math.max(0, total - Math.floor(audio.currentTime));
-    const m = Math.floor(rem/60), s = rem%60;
-    if (durEl) durEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
-  }, 100);
-}
-function resetVoiceWave(msgId, totalDur) {
-  const wave = document.getElementById('vwave-'+msgId);
-  const durEl = document.getElementById('vdur-'+msgId);
-  if (wave) wave.querySelectorAll('span').forEach(b => b.classList.remove('active'));
-  if (durEl) {
-    const m = Math.floor(totalDur/60), s = totalDur%60;
-    durEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
-  }
-}
-
-
-async function loadChatHistory() {
-  try {
-    const r = await fetch('/api/chat', { headers: {'x-token': token||''} });
-    if (!r.ok) return;
-    const msgs = await r.json();
-    msgs.forEach(m => appendChatMsg(m));
-  } catch(e) {}
-}
-
-
-// ── Moderation panel ──────────────────────────────────────────────────────────
-init();
-loadChatHistory();
-</script>
-
-<!-- ══════════════════════════ CHAT ═══════════════════════════════════════ -->
-<button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Чат">
-  <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-  <span class="unread hidden" id="chatUnread">0</span>
-</button>
-
-<div class="chat-win" id="chatWin">
-  <!-- Header -->
-  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="logo" style="width:32px;height:32px">
-        <svg width="15" height="15" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-      </div>
-      <div>
-        <div class="syne" style="font-size:13px;font-weight:800;color:var(--text)">Общий чат</div>
-        <div id="chatOnline" style="font-size:10px;color:var(--teal)">● онлайн</div>
-      </div>
-    </div>
-    <button onclick="toggleChat()" class="ibtn"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
-  </div>
-
-  <!-- Messages -->
-  <div class="chat-msgs" id="chatMsgs"></div>
-
-  <!-- Attach preview -->
-  <div id="chatAttachPreview" style="display:none;padding:8px 12px;border-top:1px solid var(--border);background:rgba(6,9,16,.98)">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <span id="chatAttachName" style="font-size:12px;color:var(--cyan)"></span>
-      <button onclick="clearChatAttach()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button>
-    </div>
-  </div>
-
-  <!-- Input bar -->
-  <div class="chat-input-bar">
-    <label class="chat-icon-btn" title="Прикрепить фото">
-      <input type="file" accept="image/*" style="display:none" onchange="handleChatFile(event)">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-    </label>
-    <textarea class="chat-ta" id="chatInput" placeholder="Сообщение..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResizeChatTa(this)"></textarea>
-    <button class="chat-icon-btn" id="voiceBtn" title="Голосовое" onclick="toggleVoiceRecord()">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"/></svg>
-    </button>
-    <button class="chat-icon-btn" id="chatSendBtn" onclick="sendChatMessage()" style="background:rgba(103,232,249,.12);border-color:rgba(103,232,249,.3);color:var(--cyan)" title="Отправить">
-      <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-    </button>
-  </div>
-  <div id="recTimerRow" style="display:none;padding:4px 16px 10px;border-top:none">
-    <span class="rec-timer" id="recTimerLabel">● 0:00</span>
-    <span style="font-size:11px;color:var(--muted);margin-left:8px">Нажмите микрофон ещё раз чтобы остановить</span>
-  </div>
-</div>
-
-
-<!-- ══════════════════════════ PREFIX EDITOR MODAL ═══════════════════════════ -->
-<div id="pfxModal" class="pfx-modal hidden">
-  <div class="pfx-modal-box">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-      <div>
-        <div class="syne" style="font-size:16px;font-weight:800;color:var(--text)">Настройка префикса</div>
-        <div id="pfxModalUsername" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
-      </div>
-      <button onclick="closePfxModal()" class="ibtn"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
-    </div>
-
-    <!-- Text + Color -->
-    <div style="margin-bottom:16px">
-      <label class="flabel">Текст префикса</label>
-      <input id="pfxText" class="fi" placeholder="например: 🔥 Босс" maxlength="20" style="margin-bottom:10px">
-      <div id="pfxColorBlock" style="display:flex;gap:10px;align-items:center;transition:.2s">
-        <div style="flex:1">
-          <label class="flabel">Основной цвет</label>
-          <input type="color" id="pfxColor" value="#a78bfa" style="width:100%;height:36px;border:1px solid var(--border);border-radius:9px;background:none;cursor:pointer;padding:3px 6px">
-        </div>
-        <div style="flex:1" id="pfxColor2Wrap">
-          <label class="flabel">Второй цвет <span style="color:var(--muted)">(для градиента)</span></label>
-          <input type="color" id="pfxColor2" value="#67e8f9" style="width:100%;height:36px;border:1px solid var(--border);border-radius:9px;background:none;cursor:pointer;padding:3px 6px">
-        </div>
-      </div>
-    </div>
-
-    <!-- Style selector -->
-    <div style="margin-bottom:18px">
-      <label class="flabel">Стиль</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px" id="pfxStyleGrid">
-        <div class="pfx-style-btn active" data-style="solid" onclick="selectPfxStyle('solid',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Обычный</div>
-          <span class="pfx pfx-solid" style="--pfx-c1:#a78bfa">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="glow" onclick="selectPfxStyle('glow',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Свечение</div>
-          <span class="pfx pfx-glow" style="--pfx-c1:#67e8f9">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="rgb" onclick="selectPfxStyle('rgb',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">RGB</div>
-          <span class="pfx pfx-rgb">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="pulse" onclick="selectPfxStyle('pulse',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Пульс</div>
-          <span class="pfx pfx-pulse" style="--pfx-c1:#fb7185">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="neon" onclick="selectPfxStyle('neon',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Неон</div>
-          <span class="pfx pfx-neon" style="--pfx-c1:#4ade80">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="fire" onclick="selectPfxStyle('fire',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Огонь</div>
-          <span class="pfx pfx-fire">Пример</span>
-        </div>
-        <div class="pfx-style-btn" data-style="rainbow" onclick="selectPfxStyle('rainbow',this)">
-          <div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Радуга</div>
-          <span class="pfx pfx-rainbow">Пример</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Live preview -->
-    <div style="margin-bottom:18px;padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;text-align:center">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;font-family:'Syne',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Предпросмотр</div>
-      <span id="pfxPreview" class="pfx pfx-solid" style="--pfx-c1:#a78bfa">Пример</span>
-    </div>
-
-    <div style="display:flex;gap:10px">
-      <button onclick="clearPfx()" class="btn btn-rose" style="flex:1;justify-content:center">Убрать префикс</button>
-      <button onclick="applyPfx()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- ══════════════════════════ PLAYGROUND ════════════════════════════════════ -->
-<div id="playgroundWin" class="pg-win">
-  <!-- Header -->
-  <div class="pg-header">
-    <!-- Left: logo + title + tabs -->
-    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden">
-      <div class="logo" style="width:28px;height:28px;flex-shrink:0">
-        <svg width="13" height="13" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-      </div>
-      <div class="syne" style="font-size:13px;font-weight:800;color:var(--text);flex-shrink:0">Тест</div>
-      <div class="pg-tabs">
-        <button class="pg-tab active" id="pgTabHtml" onclick="switchPgTab('html')">HTML</button>
-        <button class="pg-tab" id="pgTabCss" onclick="switchPgTab('css')">CSS</button>
-        <button class="pg-tab" id="pgTabJs" onclick="switchPgTab('js')">JS</button>
-      </div>
-    </div>
-
-    <!-- Right: action buttons -->
-    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-      <button onclick="pgRun()" class="btn btn-cyan btn-sm">
-        <svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        <span class="pg-btn-text">Запустить</span>
-      </button>
-      <button onclick="pgOpenNewTab()" class="ibtn" title="Открыть в новой вкладке">
-        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-      </button>
-      <button onclick="pgClear()" class="ibtn" title="Очистить">
-        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-      </button>
-      <button onclick="pgInsertSnippet()" class="ibtn" title="Вставить сниппет">
-        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      </button>
-      <button onclick="closePlayground()" class="ibtn" title="Закрыть" style="border-color:rgba(251,113,133,.3);color:var(--rose)">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-  </div>
-
-  <!-- Mobile: preview/editor toggle -->
-  <div id="pgMobileToggle" style="display:none;padding:6px 12px;border-bottom:1px solid var(--border);gap:4px" class="pg-tabs">
-    <button class="pg-tab active" id="pgModeEditor" onclick="pgSetMode('editor')" style="flex:1">✏ Редактор</button>
-    <button class="pg-tab" id="pgModePreview" onclick="pgSetMode('preview')" style="flex:1">👁 Превью</button>
-  </div>
-
-  <!-- Body -->
-  <div class="pg-body" id="pgBody">
-    <!-- Editor -->
-    <div class="pg-editor-col" id="pgEditorCol">
-      <div class="pg-editor-header">
-        <span id="pgLangLabel" class="pg-lang-badge" style="background:rgba(251,191,36,.15);color:var(--amber)">HTML</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span id="pgAutoRunLabel" style="font-size:10px;color:var(--teal)">● авто</span>
-          <button onclick="pgToggleAutoRun()" id="pgAutoRunBtn" class="btn btn-ghost btn-xs">Выкл</button>
-        </div>
-      </div>
-      <textarea id="pgEditor" class="pg-editor" placeholder="Введите HTML код..." spellcheck="false" onkeydown="pgKeydown(event)" oninput="pgAutoRun()"></textarea>
-    </div>
-
-    <!-- Preview -->
-    <div class="pg-preview-col" id="pgPreviewCol">
-      <div class="pg-editor-header" style="background:rgba(20,20,30,.9)">
-        <span style="font-size:11px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700">ПРЕДПРОСМОТР</span>
-      </div>
-      <iframe id="pgPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" style="flex:1;border:none;background:#fff;width:100%"></iframe>
-    </div>
-  </div>
-</div>
-</body>
-</html>
