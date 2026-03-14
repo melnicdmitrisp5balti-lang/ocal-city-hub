@@ -545,16 +545,16 @@ try {
   socket.on('chat_msg_deleted', id => { document.getElementById('chatmsg-'+id)?.remove(); });
   socket.on('guests_setting', d => { guestsAllowed = d.allowed; });
   socket.on('user_prefix_updated', d => {
-    // Update local maps immediately with full data from event
     prefixMap[d.username] = d.prefix || '';
     prefixColorMap[d.username] = d.color || '';
     prefixStyleMap[d.username] = d.style || 'solid';
+    // Save updated cache so page refresh keeps the new prefix
+    try { localStorage.setItem('pfxCache', JSON.stringify({prefixMap, prefixColorMap, prefixStyleMap})); } catch(e) {}
     if (currentUser && d.username === currentUser.username) {
       currentUser.prefix = d.prefix;
       localStorage.setItem('user', JSON.stringify(currentUser));
       updateHeaderBadge();
     }
-    // Re-render topics so all cards reflect new prefix
     renderTopics();
   });
   socket.on('role_updated', d => {
@@ -580,8 +580,17 @@ async function api(method, url, body) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  if (token && currentUser) { showApp(); await loadPrefixMap(); await loadTopics(); }
-  else document.getElementById('authModal').classList.remove('hidden');
+  // Load cached prefixes immediately so they show on page load for everyone
+  loadPrefixCache();
+  if (token && currentUser) {
+    showApp();
+    // Fetch fresh prefixes and topics in parallel
+    await Promise.all([loadPrefixMap(), loadTopics()]);
+  } else {
+    document.getElementById('authModal').classList.remove('hidden');
+    // Still load prefixes for guests viewing auth modal (not critical but consistent)
+    loadPrefixMap();
+  }
 }
 
 function showApp() {
@@ -610,7 +619,7 @@ async function doLogin() {
   const err=document.getElementById('loginErr'); err.classList.add('hidden');
   try {
     const d=await api('POST','/api/login',{username,password});
-    saveSession(d); showApp(); await loadTopics();
+    saveSession(d); showApp(); await Promise.all([loadPrefixMap(), loadTopics()]);
   } catch(e){err.textContent=e.message;err.classList.remove('hidden');}
 }
 
@@ -621,14 +630,14 @@ async function doRegister() {
   const err=document.getElementById('regErr'); err.classList.add('hidden');
   try {
     const d=await api('POST','/api/register',{username,password,code});
-    saveSession(d); showApp(); await loadTopics();
+    saveSession(d); showApp(); await Promise.all([loadPrefixMap(), loadTopics()]);
   } catch(e){err.textContent=e.message;err.classList.remove('hidden');}
 }
 
 async function doGuest() {
   try {
     const d=await api('POST','/api/guest');
-    saveSession(d); showApp(); await loadTopics();
+    saveSession(d); showApp(); await Promise.all([loadPrefixMap(), loadTopics()]);
   } catch(e){showToast(e.message,true);}
 }
 
@@ -1091,7 +1100,10 @@ async function changePanelPw(){
 // ── Prefix map ────────────────────────────────────────────────────────────────
 async function loadPrefixMap() {
   try {
-    const data = await api('GET', '/api/users/prefixes');
+    // Public endpoint — no auth needed, works for guests and logged-out users
+    const r = await fetch('/api/users/prefixes');
+    if (!r.ok) return;
+    const data = await r.json();
     prefixMap = {};
     prefixColorMap = {};
     prefixStyleMap = {};
@@ -1104,8 +1116,21 @@ async function loadPrefixMap() {
         prefixMap[u] = info || '';
       }
     });
+    // Cache in localStorage so prefixes survive page refresh
+    try { localStorage.setItem('pfxCache', JSON.stringify({prefixMap, prefixColorMap, prefixStyleMap})); } catch(e) {}
     updateHeaderBadge();
     if (topics.length) renderTopics();
+  } catch(e) {}
+}
+
+function loadPrefixCache() {
+  try {
+    const cached = localStorage.getItem('pfxCache');
+    if (!cached) return;
+    const d = JSON.parse(cached);
+    prefixMap = d.prefixMap || {};
+    prefixColorMap = d.prefixColorMap || {};
+    prefixStyleMap = d.prefixStyleMap || {};
   } catch(e) {}
 }
 

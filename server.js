@@ -657,7 +657,7 @@ app.delete('/api/admin/history', requireAdmin, async (req, res) => {
 });
 
 // Get users with prefix (public endpoint for chat display)
-app.get('/api/users/prefixes', requireAuth, async (req, res) => {
+app.get('/api/users/prefixes', async (req, res) => {
   try {
     const rows = await q("SELECT username, prefix, prefix_color, prefix_color2, prefix_style FROM users");
     const map = {};
