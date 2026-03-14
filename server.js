@@ -121,6 +121,7 @@ async function initDB() {
   try { await run("ALTER TABLE comments ADD COLUMN file_url TEXT"); } catch(e) {}
   try { await run("ALTER TABLE comments ADD COLUMN file_type TEXT"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE users ADD COLUMN password_plain TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE topics ADD COLUMN pinned INTEGER DEFAULT 0"); } catch(e) {}
   try { await run("ALTER TABLE topics ADD COLUMN sort_order INTEGER DEFAULT 0"); } catch(e) {}
   // Init sort_order for existing topics
@@ -140,6 +141,7 @@ async function initDB() {
   const guestSetting = await q1("SELECT value FROM settings WHERE key='guests_allowed'");
   if (!guestSetting) await run("INSERT INTO settings (key,value) VALUES ('guests_allowed','1')");
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE users ADD COLUMN password_plain TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE topics ADD COLUMN pinned INTEGER DEFAULT 0"); } catch(e) {}
   try { await run("ALTER TABLE topics ADD COLUMN sort_order INTEGER DEFAULT 0"); } catch(e) {}
   // Init sort_order for existing topics
@@ -167,7 +169,7 @@ async function initDB() {
   const admin = await q1("SELECT id FROM users WHERE role='admin' LIMIT 1");
   if (!admin) {
     const spVal = await q1("SELECT value FROM settings WHERE key='site_password'");
-    await run("INSERT OR IGNORE INTO users (username,password_hash,role) VALUES ('admin',?,'admin')", [spVal.value]);
+    await run("INSERT OR IGNORE INTO users (username,password_hash,password_plain,role) VALUES ('admin',?,?,'admin')", [spVal.value, 'admin123']);
     console.log('Admin created: admin / admin123');
   }
 
@@ -322,7 +324,7 @@ app.post('/api/register', async (req, res) => {
     if (!invite) return res.status(400).json({ error: 'Неверный или использованный код' });
     const existing = await q1("SELECT id FROM users WHERE username=?", [username.trim()]);
     if (existing) return res.status(400).json({ error: 'Имя пользователя занято' });
-    const result = await run("INSERT INTO users (username,password_hash) VALUES (?,?)", [username.trim(), hashPw(password)]);
+    const result = await run("INSERT INTO users (username,password_hash,password_plain) VALUES (?,?,?)", [username.trim(), hashPw(password), password]);
     const insertId = Number(result.lastInsertRowid);
     await run("UPDATE invite_codes SET used=1, used_by=? WHERE code=?", [username.trim(), code.trim().toUpperCase()]);
     const user = await q1("SELECT * FROM users WHERE id=?", [insertId]);
@@ -363,7 +365,7 @@ app.post('/api/admin/change-site-password', requireAdmin, async (req, res) => {
     if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'Пароль минимум 4 символа' });
     const h = hashPw(newPassword);
     await setSetting('site_password', h);
-    await run("UPDATE users SET password_hash=? WHERE role='admin'", [h]);
+    await run("UPDATE users SET password_hash=?, password_plain=? WHERE role='admin'", [h, newPassword]);
     await addHistory(req.user.username, 'change_site_password', null, null);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -749,7 +751,7 @@ app.get('/api/admin/db/users', requireAdmin, async (req, res) => {
   try {
     const rows = await q(`SELECT
       id, username, role, prefix, prefix_style, prefix_color,
-      created_at, password_hash
+      created_at, password_plain, password_hash
       FROM users ORDER BY created_at DESC`);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }

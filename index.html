@@ -1709,10 +1709,16 @@ function dbCellClass(col, val) {
 function dbCellHtml(col, val) {
   if (val === null || val === undefined || val === '') return '<span style="color:var(--muted);font-size:10px">null</span>';
 
-  // Password hash - show masked + copy
+  // Plain password - show with copy button
+  if (col === 'password_plain') {
+    if (!val) return '<span style="color:var(--muted);font-size:10px">не сохранён</span>';
+    return `<span style="font-family:'JetBrains Mono',monospace;color:var(--green);font-size:12px">${esc(String(val))}</span>
+      <button class="db-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(String(val))}').then(()=>showToast('Скопировано ✦'))" title="Скопировать пароль">⧉</button>`;
+  }
+  // Password hash - show very short, not important
   if (col === 'password_hash') {
-    const short = String(val).slice(0, 16) + '...';
-    return `<span>${esc(short)}</span><button class="db-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(String(val))}').then(()=>showToast('Скопировано'))" title="Скопировать хэш">⧉</button>`;
+    const short = String(val).slice(0, 8) + '…';
+    return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)" title="${esc(String(val))}">${esc(short)}</span>`;
   }
 
   // Blocks / JSON - show compact
