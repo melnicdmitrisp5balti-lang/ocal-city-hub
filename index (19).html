@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Starosta Hub</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='9' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='36' y2='36' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2367e8f9'/%3E%3Cstop offset='1' stop-color='%232dd4bf'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M26 28V10a2 2 0 00-2-2H12a2 2 0 00-2 2v18m16 0h2m-2 0h-6m-10 0H8m2 0h6M14 13h1m-1 4h1m6-4h1m-1 4h1m-6 11v-6a1 1 0 011-1h2a1 1 0 011 1v6m-4 0h4' stroke='%23080b12' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b12;--bg2:#0d1120;
+  --border:rgba(99,179,237,.11);--border2:rgba(99,179,237,.22);
+  --cyan:#67e8f9;--cyan-dim:rgba(103,232,249,.12);
+  --teal:#2dd4bf;--rose:#fb7185;--amber:#fbbf24;--violet:#a78bfa;--green:#4ade80;
+  --text:#e2e8f0;--muted:#64748b;--soft:#94a3b8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.syne{font-family:'Syne',sans-serif}
+.hidden{display:none!important}
+
+/* BG */
+.bg-scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:drift 20s ease-in-out infinite alternate}
+.orb1{width:600px;height:600px;background:radial-gradient(circle,rgba(14,165,233,.2),transparent);top:-200px;left:-150px;animation-duration:22s}
+.orb2{width:500px;height:500px;background:radial-gradient(circle,rgba(45,212,191,.16),transparent);bottom:-100px;right:-80px;animation-duration:26s;animation-delay:-10s}
+.orb3{width:380px;height:380px;background:radial-gradient(circle,rgba(129,140,248,.1),transparent);top:45%;left:55%;animation-duration:16s;animation-delay:-5s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,30px) scale(1.1)}}
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(103,232,249,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(103,232,249,.025) 1px,transparent 1px);background-size:52px 52px}
+
+/* Header */
+.hdr{position:sticky;top:0;z-index:40;background:rgba(8,11,18,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),var(--teal));border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px rgba(103,232,249,.28);flex-shrink:0}
+
+/* Search */
+.srch{position:relative;flex:1;max-width:300px}
+.srch input{width:100%;padding:8px 14px 8px 36px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:.2s}
+.srch input:focus{border-color:rgba(103,232,249,.38);box-shadow:0 0 0 3px rgba(103,232,249,.06)}
+.srch input::placeholder{color:var(--muted)}
+.srch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+
+/* Buttons */
+.ibtn{padding:7px 9px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer;transition:.2s;flex-shrink:0}
+.ibtn:hover{border-color:rgba(103,232,249,.35);color:var(--cyan);background:var(--cyan-dim)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;border:1px solid;text-decoration:none}
+.btn-cyan{background:rgba(103,232,249,.12);border-color:rgba(103,232,249,.3);color:var(--cyan)}
+.btn-cyan:hover{background:rgba(103,232,249,.22);box-shadow:0 0 18px rgba(103,232,249,.14)}
+.btn-teal{background:rgba(45,212,191,.1);border-color:rgba(45,212,191,.28);color:var(--teal)}
+.btn-teal:hover{background:rgba(45,212,191,.2)}
+.btn-rose{background:rgba(251,113,133,.1);border-color:rgba(251,113,133,.3);color:var(--rose)}
+.btn-rose:hover{background:rgba(251,113,133,.2)}
+.btn-amber{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.28);color:var(--amber)}
+.btn-amber:hover{background:rgba(251,191,36,.2)}
+.btn-ghost{background:rgba(255,255,255,.04);border-color:var(--border);color:var(--soft)}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+.btn-violet{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3);color:var(--violet)}
+.btn-violet:hover{background:rgba(167,139,250,.2)}
+.btn-sm{padding:5px 12px;font-size:11px}
+.btn-full{width:100%;justify-content:center;padding:12px}
+.btn-xs{padding:3px 9px;font-size:11px;border-radius:7px}
+
+/* Cards */
+.card{border-radius:16px;overflow:hidden;border:1px solid var(--border);background:rgba(11,15,26,.65);transition:.25s;animation:cardIn .4s cubic-bezier(.22,.68,0,1.2) both}
+.card:hover{border-color:rgba(103,232,249,.22);box-shadow:0 8px 32px rgba(103,232,249,.05),0 2px 8px rgba(0,0,0,.4);transform:translateY(-2px)}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* Accordion */
+.cbody{max-height:0;overflow:hidden;transition:max-height .42s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0}
+.cbody.open{max-height:9999px;opacity:1}
+.chevron{width:15px;height:15px;flex-shrink:0;color:var(--muted);transition:.32s cubic-bezier(.22,.68,0,1.2)}
+.chevron.open{transform:rotate(180deg);color:var(--cyan)}
+
+/* Code */
+.code-wrap{position:relative;border-radius:11px;overflow:hidden;border:1px solid rgba(255,255,255,.06);margin:10px 0}
+.lang-tag{position:absolute;top:9px;left:12px;z-index:2;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--cyan);opacity:.6;text-transform:uppercase}
+.cpbtn{position:absolute;top:7px;right:8px;z-index:2;padding:3px 10px;background:rgba(103,232,249,.08);border:1px solid rgba(103,232,249,.18);border-radius:6px;color:var(--cyan);font-size:11px;cursor:pointer;opacity:0;transition:.2s}
+.code-wrap:hover .cpbtn{opacity:1}
+.cpbtn:hover{background:rgba(103,232,249,.18)}
+pre[class*="language-"]{margin:0!important;border-radius:0!important;padding-top:32px!important;font-size:12.5px!important;background:#080c18!important}
+
+/* Inputs */
+.fi{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:10px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s}
+.fi:focus{border-color:rgba(103,232,249,.38);box-shadow:0 0 0 3px rgba(103,232,249,.06)}
+.fi::placeholder{color:var(--muted)}
+.fita{resize:vertical;min-height:80px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6}
+.fsel{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:9px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;cursor:pointer}
+.flabel{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:rgba(9,13,22,.98);border:1px solid var(--border2);border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.7)}
+.modal-lg{max-width:560px;max-height:90vh;overflow-y:auto}
+
+/* Side panel */
+.side{position:fixed;top:0;right:0;height:100%;width:min(480px,100vw);background:rgba(6,9,16,.97);backdrop-filter:blur(24px);border-left:1px solid var(--border2);z-index:50;transform:translateX(100%);transition:.36s cubic-bezier(.22,.68,0,1.2);overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,.6)}
+.side.open{transform:translateX(0)}
+
+/* Create topic panel (on-page) */
+.create-panel{background:rgba(11,15,26,.8);border:1px solid rgba(103,232,249,.18);border-radius:18px;padding:24px;margin-bottom:28px;animation:cardIn .4s ease}
+
+/* Toast */
+.toast{transform:translateX(120%);transition:.35s cubic-bezier(.22,.68,0,1.2);position:fixed;top:20px;right:20px;z-index:80;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:13px;background:rgba(10,14,24,.97);border:1px solid rgba(103,232,249,.25);backdrop-filter:blur(16px);box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:320px}
+.toast.show{transform:translateX(0)}
+
+/* Tabs */
+.tabs{display:flex;gap:3px;background:rgba(255,255,255,.03);border-radius:11px;padding:3px}
+.tab{flex:1;padding:7px 4px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:.2s;border:none;background:none;color:var(--muted);text-align:center;letter-spacing:.03em}
+.tab.active{background:rgba(103,232,249,.12);color:var(--cyan)}
+
+/* Block editor */
+.blk-ed{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.blk-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border)}
+
+/* Comment */
+.cmnt{padding:11px;background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:9px;margin-bottom:7px;animation:cardIn .3s ease}
+
+/* Role badge */
+.rbadge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;letter-spacing:.05em}
+
+/* History badge */
+.hbadge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;letter-spacing:.05em;white-space:nowrap}
+
+mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding:0 2px}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(103,232,249,.18);border-radius:3px}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sec-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;background:linear-gradient(135deg,#e2e8f0 30%,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.pill{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:20px;padding:3px 12px}
+
+/* ── Chat ─────────────────────────────────────────────────────────────────── */
+.chat-fab{position:fixed;bottom:28px;right:28px;z-index:70;width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,var(--cyan),var(--teal));border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 24px rgba(103,232,249,.4);transition:.25s;flex-shrink:0}
+.chat-fab:hover{transform:scale(1.09);box-shadow:0 6px 36px rgba(103,232,249,.55)}
+.chat-fab .unread{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--rose);border:2px solid var(--bg);font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif}
+.chat-win{position:fixed;bottom:94px;right:28px;z-index:70;width:min(360px,calc(100vw - 40px));height:min(540px,calc(100vh - 130px));background:rgba(6,9,16,.97);border:1px solid var(--border2);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden;transform:scale(.92) translateY(20px);opacity:0;pointer-events:none;transition:.28s cubic-bezier(.22,.68,0,1.2);transform-origin:bottom right}
+.chat-win.open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:82%;display:flex;flex-direction:column;gap:2px}
+.chat-msg.me{align-self:flex-end;align-items:flex-end}
+.chat-msg.them{align-self:flex-start;align-items:flex-start}
+.chat-bubble{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.chat-msg.me .chat-bubble{background:rgba(103,232,249,.15);border:1px solid rgba(103,232,249,.25);color:var(--text);border-bottom-right-radius:4px}
+.chat-msg.them .chat-bubble{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px}
+.chat-meta{font-size:10px;color:var(--muted);font-family:'Syne',sans-serif;padding:0 4px}
+.chat-input-bar{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;background:rgba(6,9,16,.98)}
+.chat-ta{flex:1;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;resize:none;max-height:100px;min-height:38px;transition:.2s;line-height:1.5}
+.chat-ta:focus{border-color:rgba(103,232,249,.38)}
+.chat-ta::placeholder{color:var(--muted)}
+.chat-icon-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0}
+.chat-icon-btn:hover{border-color:rgba(103,232,249,.35);color:var(--cyan);background:var(--cyan-dim)}
+.chat-icon-btn.recording{border-color:rgba(251,113,133,.5);color:var(--rose);background:rgba(251,113,133,.1);animation:pulse-rec .9s ease-in-out infinite}
+@keyframes pulse-rec{0%,100%{box-shadow:0 0 0 0 rgba(251,113,133,.4)}50%{box-shadow:0 0 0 6px rgba(251,113,133,0)}}
+.voice-bubble{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;min-width:180px}
+.voice-play{width:30px;height:30px;border-radius:50%;background:rgba(103,232,249,.18);border:1px solid rgba(103,232,249,.3);color:var(--cyan);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s}
+.voice-play:hover{background:rgba(103,232,249,.28)}
+.voice-waveform{flex:1;height:28px;display:flex;align-items:center;gap:2px}
+.voice-waveform span{display:inline-block;width:3px;border-radius:2px;background:rgba(103,232,249,.4);transition:.15s}
+.voice-waveform span.active{background:var(--cyan)}
+.voice-dur{font-size:11px;color:var(--muted);font-family:'Syne',sans-serif;flex-shrink:0;min-width:32px}
+.chat-img-preview{max-width:100%;max-height:180px;border-radius:10px;cursor:pointer;border:1px solid var(--border)}
+.rec-timer{font-size:11px;color:var(--rose);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.04em;align-self:center}
+
+/* ── Prefix styles ─────────────────────────────────────────────────────────── */
+.pfx{display:inline-flex;align-items:center;padding:1px 7px;border-radius:5px;font-size:9px;font-weight:700;font-family:'Syne',sans-serif;letter-spacing:.06em;white-space:nowrap;line-height:1.6}
+.pfx-solid{background:var(--pfx-c1)22;color:var(--pfx-c1);border:1px solid var(--pfx-c1)66}
+.pfx-glow{background:var(--pfx-c1)18;color:var(--pfx-c1);border:1px solid var(--pfx-c1)55;animation:pfx-glow 2s ease-in-out infinite alternate}
+@keyframes pfx-glow{from{box-shadow:0 0 4px var(--pfx-c1)88,0 0 8px var(--pfx-c1)44}to{box-shadow:0 0 10px var(--pfx-c1),0 0 20px var(--pfx-c1)66,0 0 30px var(--pfx-c1)33}}
+.pfx-rgb{border:1px solid transparent;color:#fff;animation:pfx-rgb 3s linear infinite;background-clip:padding-box}
+@keyframes pfx-rgb{0%{background:rgba(255,59,59,.25);border-color:rgba(255,59,59,.6);text-shadow:0 0 8px #ff3b3b}16%{background:rgba(255,165,0,.25);border-color:rgba(255,165,0,.6);text-shadow:0 0 8px #ffa500}33%{background:rgba(255,255,0,.2);border-color:rgba(255,255,0,.5);text-shadow:0 0 8px #ffff00}50%{background:rgba(0,255,100,.2);border-color:rgba(0,255,100,.5);text-shadow:0 0 8px #00ff64}66%{background:rgba(0,180,255,.25);border-color:rgba(0,180,255,.6);text-shadow:0 0 8px #00b4ff}83%{background:rgba(180,0,255,.25);border-color:rgba(180,0,255,.6);text-shadow:0 0 8px #b400ff}100%{background:rgba(255,59,59,.25);border-color:rgba(255,59,59,.6);text-shadow:0 0 8px #ff3b3b}}
+.pfx-pulse{background:var(--pfx-c1)20;color:var(--pfx-c1);border:1px solid var(--pfx-c1)55;animation:pfx-pulse 1.4s ease-in-out infinite}
+@keyframes pfx-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.95)}}
+.pfx-neon{background:transparent;color:var(--pfx-c1);border:1.5px solid var(--pfx-c1);text-shadow:0 0 6px var(--pfx-c1),0 0 12px var(--pfx-c1);box-shadow:0 0 6px var(--pfx-c1)55,inset 0 0 6px var(--pfx-c1)22;animation:pfx-neon 2.5s ease-in-out infinite alternate}
+@keyframes pfx-neon{from{box-shadow:0 0 4px var(--pfx-c1)55,inset 0 0 4px var(--pfx-c1)22}to{box-shadow:0 0 12px var(--pfx-c1),0 0 24px var(--pfx-c1)88,inset 0 0 8px var(--pfx-c1)44}}
+.pfx-fire{color:#fff;border:1px solid rgba(255,120,0,.6);animation:pfx-fire 1.8s ease-in-out infinite}
+@keyframes pfx-fire{0%{background:rgba(255,60,0,.3);box-shadow:0 0 6px #ff3c00,0 -2px 8px #ff8c00;text-shadow:0 0 6px #ffcc00}33%{background:rgba(255,120,0,.35);box-shadow:0 0 10px #ff7800,0 -3px 12px #ff4400;text-shadow:0 0 8px #ff8800}66%{background:rgba(255,80,0,.3);box-shadow:0 0 8px #ff5000,0 -2px 10px #ffaa00;text-shadow:0 0 6px #ffdd00}100%{background:rgba(255,60,0,.3);box-shadow:0 0 6px #ff3c00,0 -2px 8px #ff8c00;text-shadow:0 0 6px #ffcc00}}
+.pfx-gradient{border:1px solid transparent;animation:pfx-grad-border 4s linear infinite}
+@keyframes pfx-grad-border{0%,100%{border-color:var(--pfx-c1)88}50%{border-color:var(--pfx-c2,var(--pfx-c1))88}}
+.pfx-rainbow{border:1px solid transparent;color:#fff;font-weight:800;background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00d4ff,#b400ff) padding-box,linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00d4ff,#b400ff) border-box;background-size:200% 100%;animation:pfx-rainbow 2s linear infinite;-webkit-background-clip:padding-box,border-box;background-clip:padding-box,border-box;text-shadow:0 0 8px rgba(255,255,255,.5)}
+@keyframes pfx-rainbow{0%{background-position:0% 0%}100%{background-position:200% 0%}}
+
+/* Prefix editor modal */
+.pfx-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(10px);z-index:90;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s}
+.pfx-modal-box{background:rgba(8,11,18,.99);border:1px solid var(--border2);border-radius:20px;padding:26px;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.8)}
+.pfx-style-btn{padding:8px 14px;border-radius:9px;border:1px solid var(--border);background:rgba(255,255,255,.03);cursor:pointer;transition:.2s;text-align:center}
+.pfx-style-btn:hover,.pfx-style-btn.active{border-color:rgba(103,232,249,.4);background:rgba(103,232,249,.07)}
+
+/* ── Pinned topics ──────────────────────────────────────────────────────────── */
+.card-pinned{border-color:rgba(251,191,36,.3)!important;background:rgba(251,191,36,.03)!important}
+.card-pinned:hover{border-color:rgba(251,191,36,.5)!important;box-shadow:0 8px 32px rgba(251,191,36,.08),0 2px 8px rgba(0,0,0,.4)!important}
+.pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-family:'Syne',sans-serif;font-weight:700;color:var(--amber);letter-spacing:.04em}
+
+/* ── Playground ─────────────────────────────────────────────────────────────── */
+.pg-win{position:fixed;inset:0;z-index:80;background:rgba(6,9,16,.98);display:flex;flex-direction:column;transform:translateY(100%);transition:.35s cubic-bezier(.22,.68,0,1.2)}
+.pg-win.open{transform:translateY(0)}
+.pg-header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(8,11,18,.95)}
+.pg-tabs{display:flex;gap:3px;background:rgba(255,255,255,.03);border-radius:9px;padding:3px}
+.pg-tab{padding:5px 14px;border-radius:6px;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:none;background:none;color:var(--muted);transition:.2s}
+.pg-tab.active{background:rgba(103,232,249,.12);color:var(--cyan)}
+.pg-body{flex:1;display:flex;overflow:hidden}
+.pg-editor-col{width:50%;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.pg-preview-col{flex:1;display:flex;flex-direction:column;background:#fff}
+.pg-editor-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(11,15,26,.9)}
+.pg-editor{flex:1;overflow:hidden}
+.pg-preview-col iframe{flex:1;border:none;width:100%;height:100%}
+.pg-lang-badge{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:5px}
+@media(max-width:640px){
+  .pg-body{flex-direction:column}
+  .pg-editor-col{width:100%;border-right:none;border-bottom:1px solid var(--border)}
+  .pg-preview-col{min-height:200px}
+  .pg-btn-text{display:none}
+  #pgMobileToggle{display:flex!important}
+  .pg-header{padding:8px 12px;gap:6px}
+  .pg-tab{padding:4px 8px;font-size:10px}
+}
+
+/* ── DB Viewer ──────────────────────────────────────────────────────────────── */
+.db-table-btn{font-size:10px!important;padding:4px 10px!important}
+.db-table-btn.active-db{border-color:rgba(103,232,249,.4)!important;color:var(--cyan)!important;background:rgba(103,232,249,.08)!important}
+#dbTable th{padding:8px 10px;text-align:left;font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);white-space:nowrap}
+#dbTable td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--soft);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top}
+#dbTable tr:last-child td{border-bottom:none}
+#dbTable tr:hover td{background:rgba(103,232,249,.03)}
+#dbTable td.db-id{color:var(--muted);font-family:'Syne',sans-serif;font-size:10px}
+#dbTable td.db-role-admin{color:var(--amber);font-weight:700;font-family:'Syne',sans-serif}
+#dbTable td.db-role-editor{color:var(--violet);font-family:'Syne',sans-serif}
+#dbTable td.db-role-user{color:var(--cyan);font-family:'Syne',sans-serif}
+#dbTable td.db-hash{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);max-width:120px}
+#dbTable td.db-bool-yes{color:var(--green);font-weight:700}
+#dbTable td.db-bool-no{color:var(--muted)}
+.db-copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:1px 4px;border-radius:3px;font-size:10px;transition:.15s}
+.db-copy-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
+</style>
+
+</head>
+<body>
+<div class="bg-scene"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
+<div class="grid-bg"></div>
+
+<!-- Toast -->
+<div id="toast" class="toast">
+  <span id="toastIcon" style="font-size:14px;flex-shrink:0">✦</span>
+  <span id="toastMsg" style="font-size:13px;color:var(--text)"></span>
+</div>
+
+<!-- ══════════════════════════ AUTH MODAL ══════════════════════════════════ -->
+<div id="authModal" class="modal-bg">
+  <div class="modal">
+    <div style="text-align:center;margin-bottom:22px">
+      <div class="logo" style="margin:0 auto 12px;width:46px;height:46px">
+        <svg width="21" height="21" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div class="syne" style="font-size:20px;font-weight:800;color:var(--text)">Starosta Hub</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">база знаний</div>
+    </div>
+
+    <div class="tabs" style="margin-bottom:18px">
+      <button class="tab active" onclick="switchAuthTab('login')">Вход</button>
+      <button class="tab" onclick="switchAuthTab('register')">Регистрация</button>
+    </div>
+
+    <!-- Login -->
+    <div id="loginForm">
+      <div style="margin-bottom:11px">
+        <label class="flabel">Логин</label>
+        <input id="liLogin" class="fi" placeholder="Имя пользователя" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="flabel">Пароль</label>
+        <input id="liPw" class="fi" type="password" placeholder="Пароль" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <p id="loginErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
+      <button class="btn btn-cyan btn-full" onclick="doLogin()" style="margin-bottom:10px">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14"/></svg>
+        Войти
+      </button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted)">или</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <button class="btn btn-ghost btn-full" onclick="doGuest()">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        Войти как гость
+      </button>
+    </div>
+
+    <!-- Register -->
+    <div id="registerForm" class="hidden">
+      <div style="margin-bottom:11px">
+        <label class="flabel">Имя пользователя</label>
+        <input id="regLogin" class="fi" placeholder="Минимум 3 символа">
+      </div>
+      <div style="margin-bottom:11px">
+        <label class="flabel">Пароль</label>
+        <input id="regPw" class="fi" type="password" placeholder="Минимум 4 символа">
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="flabel">Код приглашения</label>
+        <input id="regCode" class="fi" placeholder="XXXXXX" style="text-transform:uppercase;letter-spacing:.1em;font-family:'Syne',sans-serif">
+      </div>
+      <p id="regErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
+      <button class="btn btn-cyan btn-full" onclick="doRegister()">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+        Зарегистрироваться
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ EDIT MODAL ═════════════════════════════════ -->
+<div id="editModal" class="modal-bg hidden">
+  <div class="modal modal-lg">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div class="syne" style="font-size:16px;font-weight:800">Редактировать тему</div>
+      <button onclick="closeEditModal()" class="ibtn"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div style="margin-bottom:13px">
+      <label class="flabel">Название</label>
+      <input id="editTitle" class="fi" placeholder="Заголовок">
+    </div>
+    <div id="editBlocksList" style="margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+      <button onclick="addEditBlock('text')" class="btn btn-ghost btn-sm">+ Текст</button>
+      <button onclick="addEditBlock('code')" class="btn btn-ghost btn-sm">+ Код</button>
+      <button onclick="addEditBlock('image')" class="btn btn-ghost btn-sm">+ Фото/Файл</button>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditModal()" class="btn btn-ghost" style="flex:1;justify-content:center">Отмена</button>
+      <button onclick="saveEdit()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ HEADER ═════════════════════════════════════ -->
+<header class="hdr">
+  <div style="max-width:860px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;gap:12px">
+    <div class="logo">
+      <svg width="17" height="17" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+    </div>
+    <div class="syne" style="font-size:14px;font-weight:800;color:var(--text);flex-shrink:0">Starosta Hub</div>
+
+    <div class="srch" style="margin-left:auto">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+      <input id="searchInput" placeholder="Поиск..." oninput="renderTopics()">
+    </div>
+
+    <!-- User -->
+    <div id="userBadge" class="hidden" style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div>
+        <div id="userLabel" class="syne" style="font-size:12px;font-weight:700;color:var(--text);line-height:1"></div>
+        <div id="roleLabel" style="font-size:10px;color:var(--muted);line-height:1;margin-top:2px"></div>
+      </div>
+      <button onclick="doLogout()" class="ibtn" title="Выйти">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+
+    <!-- Playground btn -->
+    <button id="playgroundBtn" class="ibtn hidden" onclick="openPlayground()" title="Тестирование кода">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+    </button>
+
+    <!-- Admin panel btn -->
+    <button id="adminPanelBtn" class="ibtn hidden" onclick="openAdminSide()" title="Панель администратора">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════ ADMIN SIDE PANEL ════════════════════════════ -->
+<div id="adminSide" class="side">
+  <div style="padding:24px 22px 50px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px">
+      <div>
+        <div class="syne" style="font-size:18px;font-weight:800;color:var(--text)">Панель</div>
+        <div style="font-size:11px;color:var(--muted)">администратора</div>
+      </div>
+      <button onclick="closeAdminSide()" class="ibtn"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+
+    <!-- Panel password check -->
+    <div id="panelAuthBox">
+      <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.14);border-radius:13px;padding:18px">
+        <div class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">🔐 Пароль панели</div>
+        <div style="display:flex;gap:8px">
+          <input id="panelPwInput" type="password" class="fi" placeholder="Пароль панели..." style="flex:1" onkeydown="if(event.key==='Enter')verifyPanel()">
+          <button onclick="verifyPanel()" class="btn btn-amber btn-sm">Войти</button>
+        </div>
+        <p id="panelErr" class="hidden" style="color:var(--rose);font-size:12px;margin-top:8px">Неверный пароль</p>
+      </div>
+    </div>
+
+    <div id="panelContent" class="hidden">
+      <div class="tabs" style="margin-bottom:18px">
+        <button class="tab active" id="ptInvites" onclick="switchPanelTab('invites')">Коды</button>
+        <button class="tab" id="ptUsers"   onclick="switchPanelTab('users')">Юзеры</button>
+        <button class="tab" id="ptHistory" onclick="switchPanelTab('history')">История</button>
+        <button class="tab" id="ptDb"      onclick="switchPanelTab('db')">БД</button>
+        <button class="tab" id="ptSettings" onclick="switchPanelTab('settings')">Пароли</button>
+      </div>
+
+      <!-- INVITES -->
+      <div id="tabInvites">
+        <button onclick="genInvite()" class="btn btn-cyan btn-full" style="margin-bottom:14px">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Создать код приглашения
+        </button>
+        <div id="invitesList" style="display:flex;flex-direction:column;gap:7px"></div>
+      </div>
+
+      <!-- USERS -->
+      <div id="tabUsers" class="hidden">
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button onclick="loadUsers()" class="btn btn-ghost btn-sm">↻ Обновить</button>
+        </div>
+        <div id="usersList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- HISTORY -->
+      <div id="tabHistory" class="hidden">
+        <button onclick="loadHistory()" class="btn btn-ghost btn-sm" style="margin-bottom:13px">↻ Обновить</button>
+        <div id="historyList" style="display:flex;flex-direction:column;gap:5px"></div>
+      </div>
+
+      <!-- MODERATION -->
+      <div id="tabModeration" class="hidden">
+        <!-- Guests toggle -->
+        <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">👥 Гостевой вход</div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--soft)">Разрешить вход как гость</span>
+            <button id="guestToggleBtn" onclick="toggleGuests()" class="btn btn-ghost btn-sm">...</button>
+          </div>
+        </div>
+        <!-- Clear chat -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🗑 Очистить чат</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить все сообщения из общего чата</div>
+          <button onclick="clearChat()" class="btn btn-rose btn-full">Очистить историю чата</button>
+        </div>
+        <!-- Clear history log -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">📋 История действий</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Очистить журнал действий администратора</div>
+          <button onclick="clearHistoryLog()" class="btn btn-rose btn-full">Очистить историю</button>
+        </div>
+      </div>
+
+      <!-- DATABASE VIEWER -->
+      <div id="tabDb" class="hidden">
+
+        <!-- Auth gate -->
+        <div id="dbAuthBox">
+          <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.13);border-radius:13px;padding:24px;text-align:center">
+            <div style="font-size:32px;margin-bottom:10px">🗄️</div>
+            <div class="syne" style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">База данных</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Введите пароль БД для доступа<br></div>
+            <input id="dbPwInput" class="fi" type="password" placeholder="Пароль БД" style="margin-bottom:10px;text-align:center;letter-spacing:.1em" onkeydown="if(event.key==='Enter')verifyDbAccess()">
+            <p id="dbAuthErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
+            <button onclick="verifyDbAccess()" class="btn btn-cyan btn-full">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+              Войти в БД
+            </button>
+          </div>
+        </div>
+
+        <!-- DB Content (hidden until auth) -->
+        <div id="dbContent" class="hidden">
+        <!-- Table selector -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <button onclick="dbLoad('users')"    id="dbBtnUsers"    class="btn btn-ghost btn-sm db-table-btn active-db">👤 Пользователи</button>
+          <button onclick="dbLoad('topics')"   id="dbBtnTopics"   class="btn btn-ghost btn-sm db-table-btn">📄 Темы</button>
+          <button onclick="dbLoad('comments')" id="dbBtnComments" class="btn btn-ghost btn-sm db-table-btn">💬 Комментарии</button>
+          <button onclick="dbLoad('chat')"     id="dbBtnChat"     class="btn btn-ghost btn-sm db-table-btn">🗨 Чат</button>
+          <button onclick="dbLoad('invites')"  id="dbBtnInvites"  class="btn btn-ghost btn-sm db-table-btn">🔑 Инвайты</button>
+        </div>
+        <!-- Search -->
+        <div style="position:relative;margin-bottom:10px">
+          <input id="dbSearch" class="fi" placeholder="Поиск по таблице..." style="font-size:12px;padding:7px 12px 7px 32px" oninput="dbFilter()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+        </div>
+        <!-- Stats row -->
+        <div id="dbStats" style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:'Syne',sans-serif"></div>
+        <!-- Table -->
+        <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">
+          <table id="dbTable" style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead id="dbHead"></thead>
+            <tbody id="dbBody"></tbody>
+          </table>
+        </div>
+        <div id="dbEmpty" style="text-align:center;padding:30px;color:var(--muted);font-size:13px;display:none">Нет данных</div>
+
+        <!-- Change DB password -->
+        <div style="margin-top:16px;padding:14px;background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:11px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔐 Сменить пароль БД</div>
+          <div style="display:flex;gap:8px">
+            <input id="dbNewPw1" class="fi" type="password" placeholder="Новый пароль" style="font-size:12px;flex:1">
+            <input id="dbNewPw2" class="fi" type="password" placeholder="Повторить" style="font-size:12px;flex:1">
+            <button onclick="changeDbPassword()" class="btn btn-rose btn-sm">Сменить</button>
+          </div>
+        </div>
+
+        <!-- Logout DB -->
+        <div style="margin-top:10px;text-align:right">
+          <button onclick="dbResetAuth()" class="btn btn-ghost btn-sm" style="font-size:11px">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            Выйти из БД
+          </button>
+        </div>
+        </div> <!-- /dbContent -->
+      </div>
+
+      <!-- SETTINGS / PASSWORDS -->
+      <div id="tabSettings" class="hidden">
+        <!-- Guest toggle -->
+        <div style="background:rgba(45,212,191,.04);border:1px solid rgba(45,212,191,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">👤 Гостевой доступ</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Разрешить или запретить вход гостям</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="setGuestsAllowed(true)" id="btnGuestAllow" class="btn btn-teal btn-sm" style="flex:1;justify-content:center">✓ Разрешить</button>
+            <button onclick="setGuestsAllowed(false)" id="btnGuestDeny" class="btn btn-rose btn-sm" style="flex:1;justify-content:center">✕ Запретить</button>
+          </div>
+          <div id="guestStatusLabel" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center"></div>
+        </div>
+        <!-- Clear chat -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🗑️ Очистить чат</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить все сообщения в общем чате</div>
+          <button onclick="clearChat()" class="btn btn-rose btn-full">Очистить историю чата</button>
+        </div>
+        <!-- Clear history log -->
+        <div style="background:rgba(251,113,133,.04);border:1px solid rgba(251,113,133,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--rose);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🗑️ Очистить историю действий</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Удалить весь лог действий</div>
+          <button onclick="clearHistory()" class="btn btn-rose btn-full">Очистить историю</button>
+        </div>
+        <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.13);border-radius:13px;padding:17px;margin-bottom:14px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--cyan);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🌐 Пароль сайта</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Пароль для входа под аккаунтом <b style="color:var(--text)">admin</b></div>
+          <input id="newSitePw"  class="fi" type="password" placeholder="Новый пароль" style="margin-bottom:8px">
+          <input id="newSitePw2" class="fi" type="password" placeholder="Повторите">
+          <button onclick="changeSitePw()" class="btn btn-cyan btn-full" style="margin-top:9px">Изменить</button>
+        </div>
+        <div style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.13);border-radius:13px;padding:17px">
+          <div class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">🔐 Пароль панели</div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:10px">Пароль для входа в эту панель</div>
+          <input id="newPanelPw"  class="fi" type="password" placeholder="Новый пароль" style="margin-bottom:8px">
+          <input id="newPanelPw2" class="fi" type="password" placeholder="Повторите">
+          <button onclick="changePanelPw()" class="btn btn-amber btn-full" style="margin-top:9px">Изменить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ MAIN ═══════════════════════════════════════ -->
+<main style="max-width:860px;margin:0 auto;padding:36px 20px 100px;position:relative;z-index:1">
+
+  <!-- Create topic panel — shown only for admin/editor -->
+  <div id="createPanel" class="create-panel hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="syne" style="font-size:16px;font-weight:800;color:var(--text)">Создать тему</div>
+      <button onclick="toggleCreatePanel()" class="ibtn" id="createToggleBtn">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+      </button>
+    </div>
+    <div id="createFormInner">
+      <div style="margin-bottom:12px">
+        <label class="flabel">Название темы</label>
+        <input id="fTitle" class="fi" placeholder="Заголовок...">
+      </div>
+      <div id="blocksList" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button onclick="addBlock('text')" class="btn btn-ghost btn-sm">
+          <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>+ Текст
+        </button>
+        <button onclick="addBlock('code')" class="btn btn-ghost btn-sm">
+          <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>+ Код
+        </button>
+        <button onclick="addBlock('image')" class="btn btn-ghost btn-sm">
+          <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>+ Фото/Файл
+        </button>
+      </div>
+      <button onclick="publishTopic()" class="btn btn-cyan btn-full">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Опубликовать
+      </button>
+    </div>
+  </div>
+
+  <!-- Topics header -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px">
+    <div>
+      <div class="sec-title">Темы</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Нажмите на название чтобы раскрыть</div>
+    </div>
+    <span class="pill" id="topicsCount">0 тем</span>
+  </div>
+
+  <div id="topicsContainer" style="display:flex;flex-direction:column;gap:10px"></div>
+
+  <div id="emptyState" style="text-align:center;padding:80px 0">
+    <div style="width:66px;height:66px;border-radius:18px;background:rgba(103,232,249,.05);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 13px">
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--cyan);opacity:.4"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    </div>
+    <div class="syne" style="font-size:15px;font-weight:700;color:var(--soft);margin-bottom:4px">Тем пока нет</div>
+    <div style="font-size:13px;color:var(--muted)">Администратор ещё не добавил темы</div>
+  </div>
+</main>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('token') || null;
+let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+let topics = [];
+let blockCounter = 0;
+let editBlockCounter = 0;
+let editingTopicId = null;
+let createPanelOpen = true;
+let guestsAllowed = true;
+let prefixMap = {};
+let prefixColorMap = {};
+let prefixStyleMap = {};
+
+const EDITOR_ROLES = ['admin', 'editor'];
+
+// ── Socket ────────────────────────────────────────────────────────────────────
+let socket;
+try {
+  socket = io();
+  socket.on('topic_created', t  => { topics.unshift(t); renderTopics(); showToast('Новая тема: ' + t.title); });
+  socket.on('topic_updated', t  => { const i=topics.findIndex(x=>x.id===t.id); if(i>=0) topics[i]={...topics[i],...t,blocks:t.blocks}; renderTopics(); });
+  socket.on('topic_deleted', id => { topics=topics.filter(t=>t.id!==id); renderTopics(); });
+  socket.on('comment_added',  c  => addCommentDOM(c));
+  socket.on('comment_deleted',id => document.getElementById('cm-'+id)?.remove());
+  socket.on('topic_pinned', d => {
+    const t = topics.find(x => x.id === d.id);
+    if (t) { t.pinned = d.pinned; renderTopics(); }
+  });
+  socket.on('topics_reordered', newTopics => {
+    topics = newTopics;
+    renderTopics();
+  });
+  socket.on('settings_update', s => { if(s.guests_allowed !== undefined) { /* handled globally */ } });
+  socket.on('user_updated', u => {
+    if (currentUser && currentUser.username === u.username) {
+      currentUser.role = u.role; currentUser.prefix = u.prefix || '';
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      // update role display
+      const roleNames={admin:'Администратор',editor:'Редактор',user:'Участник',guest:'Гость'};
+      const roleColors={admin:'var(--amber)',editor:'var(--violet)',user:'var(--cyan)',guest:'var(--muted)'};
+      const rl=document.getElementById('roleLabel');
+      if(rl){rl.textContent=roleNames[u.role]||u.role;rl.style.color=roleColors[u.role]||'var(--muted)';}
+    }
+  });
+  socket.on('chat_cleared', () => { document.getElementById('chatMsgs').innerHTML=''; });
+  socket.on('chat_msg_deleted', id => { document.getElementById('cm2-'+id)?.remove(); });
+  socket.on('chat_cleared', () => { document.getElementById('chatMsgs').innerHTML = ''; showToast('Чат очищен'); });
+  socket.on('chat_msg_deleted', id => { document.getElementById('chatmsg-'+id)?.remove(); });
+  socket.on('guests_setting', d => { guestsAllowed = d.allowed; });
+  socket.on('user_prefix_updated', d => {
+    prefixMap[d.username] = d.prefix || '';
+    prefixColorMap[d.username] = d.color || '';
+    prefixStyleMap[d.username] = d.style || 'solid';
+
+    if (currentUser && d.username === currentUser.username) {
+      currentUser.prefix = d.prefix;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      updateHeaderBadge();
+    }
+    renderTopics();
+  });
+  socket.on('role_updated', d => {
+    if (currentUser && d.username === currentUser.username) {
+      currentUser.role = d.role;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      location.reload();
+    }
+  });
+} catch(e){}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(method, url, body) {
+  const r = await fetch(url, {
+    method,
+    headers: { 'Content-Type':'application/json', 'x-token': token||'' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Ошибка');
+  return d;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  if (token && currentUser) {
+    showApp();
+    // Fetch fresh prefixes and topics in parallel
+    await loadPrefixMap(); await loadTopics();
+  } else {
+    document.getElementById('authModal').classList.remove('hidden');
+    // Still load prefixes for guests viewing auth modal (not critical but consistent)
+    loadPrefixMap();
+  }
+}
+
+function showApp() {
+  document.getElementById('authModal').classList.add('hidden');
+  document.getElementById('userBadge').classList.remove('hidden');
+  document.getElementById('userLabel').textContent = currentUser.username;
+
+  const roleNames = { admin:'Администратор', editor:'Редактор', user:'Участник', guest:'Гость' };
+  const roleColors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
+  updateHeaderBadge();
+
+  if (currentUser.role === 'admin') document.getElementById('adminPanelBtn').classList.remove('hidden');
+  if (EDITOR_ROLES.includes(currentUser.role)) document.getElementById('createPanel').classList.remove('hidden');
+  if (currentUser.role !== 'guest') document.getElementById('playgroundBtn').classList.remove('hidden');
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function switchAuthTab(t) {
+  document.querySelectorAll('#authModal .tab').forEach((el,i)=>el.classList.toggle('active',(t==='login'&&i===0)||(t==='register'&&i===1)));
+  document.getElementById('loginForm').classList.toggle('hidden',t!=='login');
+  document.getElementById('registerForm').classList.toggle('hidden',t!=='register');
+}
+
+async function doLogin() {
+  const username=document.getElementById('liLogin').value.trim();
+  const password=document.getElementById('liPw').value;
+  const err=document.getElementById('loginErr'); err.classList.add('hidden');
+  try {
+    const d=await api('POST','/api/login',{username,password});
+    saveSession(d); showApp(); await loadPrefixMap(); await loadTopics();
+  } catch(e){err.textContent=e.message;err.classList.remove('hidden');}
+}
+
+async function doRegister() {
+  const username=document.getElementById('regLogin').value.trim();
+  const password=document.getElementById('regPw').value;
+  const code=document.getElementById('regCode').value.trim();
+  const err=document.getElementById('regErr'); err.classList.add('hidden');
+  try {
+    const d=await api('POST','/api/register',{username,password,code});
+    saveSession(d); showApp(); await loadPrefixMap(); await loadTopics();
+  } catch(e){err.textContent=e.message;err.classList.remove('hidden');}
+}
+
+async function doGuest() {
+  try {
+    const d=await api('POST','/api/guest');
+    saveSession(d); showApp(); await loadPrefixMap(); await loadTopics();
+  } catch(e){showToast(e.message,true);}
+}
+
+async function doLogout() {
+  try{await api('POST','/api/logout');}catch(e){}
+  localStorage.removeItem('token'); localStorage.removeItem('user');
+  location.reload();
+}
+
+function saveSession(d) {
+  token=d.token; currentUser={username:d.username,role:d.role,prefix:d.prefix||''};
+  localStorage.setItem('token',token); localStorage.setItem('user',JSON.stringify(currentUser));
+}
+
+// ── Topics ────────────────────────────────────────────────────────────────────
+async function loadTopics() {
+  try { topics=await api('GET','/api/topics'); renderTopics(); } catch(e){}
+}
+
+function renderTopics() {
+  const cont=document.getElementById('topicsContainer');
+  const empty=document.getElementById('emptyState');
+  const q=document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered=q?topics.filter(t=>t.title.toLowerCase().includes(q)):topics;
+  const n=filtered.length;
+  document.getElementById('topicsCount').textContent=n+(n===1?' тема':n>1&&n<5?' темы':' тем');
+  if(!n){cont.innerHTML='';empty.style.display='';return;}
+  empty.style.display='none';
+  const canEdit=EDITOR_ROLES.includes(currentUser?.role);
+  const isAdmin=currentUser?.role==='admin';
+
+  cont.innerHTML=filtered.map((t,idx)=>{
+    const blocks=(t.blocks||[]).map((b,bi)=>{
+      const sep=bi>0?'<div style="height:1px;background:var(--border);margin:8px 0"></div>':'';
+      if(b.type==='code') return `${sep}<div class="code-wrap"><span class="lang-tag">${(b.language||'code').toUpperCase()}</span><button class="cpbtn" onclick='copyText(${JSON.stringify(b.content)})'>Копировать</button><pre class="language-${b.language}"><code class="language-${b.language}">${esc(b.content)}</code></pre></div>`;
+      if(b.type==='image'){
+        const isImg=/\.(jpg|jpeg|png|gif|webp|svg)/i.test(b.content)||b.content.includes('image');
+        if(isImg) return `${sep}<div style="padding:8px 0"><img src="${esc(b.content)}" style="max-width:100%;border-radius:10px;border:1px solid var(--border);cursor:pointer" onclick="window.open('${esc(b.content)}','_blank')"></div>`;
+        const fname=b.content.split('/').pop().split('?')[0]||'файл';
+        return `${sep}<div style="padding:8px 0"><a href="${esc(b.content)}" target="_blank" style="display:inline-flex;align-items:center;gap:7px;padding:9px 14px;background:rgba(103,232,249,.06);border:1px solid rgba(103,232,249,.18);border-radius:9px;color:var(--cyan);font-size:13px;text-decoration:none"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>${esc(fname)}</a></div>`;
+      }
+      return `${sep}<div style="color:var(--soft);font-size:14px;line-height:1.8;white-space:pre-wrap;padding:12px 0">${esc(b.content)}</div>`;
+    }).join('');
+
+    const editBtn=canEdit?`<button onclick="event.stopPropagation();openEditModal('${t.id}')" title="Редактировать" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>`:'';
+    const pinBtn=canEdit?`<button onclick="event.stopPropagation();pinTopic('${t.id}')" title="${t.pinned?'Открепить':'Закрепить'}" style="padding:5px;background:none;border:none;cursor:pointer;color:${t.pinned?'var(--amber)':'var(--muted)'};border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='${t.pinned?'var(--amber)':'var(--muted)'}'"><svg width="13" height="13" fill="${t.pinned?'currentColor':'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg></button>`:'';
+    const moveBtn=canEdit?`<button onclick="event.stopPropagation();moveTopic('${t.id}','up')" title="Выше" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></button><button onclick="event.stopPropagation();moveTopic('${t.id}','down')" title="Ниже" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>`:'';
+    const delBtn=isAdmin?`<button onclick="event.stopPropagation();deleteTopic('${t.id}')" title="Удалить" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>`:'';
+
+    const isGuest=currentUser?.role==='guest';
+    const commentInput=isGuest
+      ?`<div style="font-size:12px;color:var(--muted);padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:9px;text-align:center">Зарегистрируйтесь чтобы комментировать</div>`
+      :`<div style="margin-top:10px">
+          <div style="display:flex;gap:8px">
+            <input id="cmtIn-${t.id}" class="fi" placeholder="Комментарий..." style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter'&&!event.shiftKey)submitComment('${t.id}')">
+            <label title="Прикрепить файл" style="padding:7px 9px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer;transition:.2s;display:flex;align-items:center" onmouseover="this.style.borderColor='rgba(103,232,249,.35)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+              <input type="file" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar" style="display:none" onchange="handleCommentFile(event,'${t.id}')">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+            </label>
+            <button onclick="submitComment('${t.id}')" class="btn btn-cyan btn-sm">↑</button>
+          </div>
+          <div id="cmtFile-${t.id}" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(103,232,249,.05);border:1px solid rgba(103,232,249,.15);border-radius:8px;display:none;align-items:center;justify-content:space-between;gap:8px">
+            <span id="cmtFileName-${t.id}" style="font-size:12px;color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+            <button onclick="clearCommentFile('${t.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;flex-shrink:0" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button>
+          </div>
+        </div>`;
+
+    return `<div class="card ${t.pinned?'card-pinned':''}" style="animation-delay:${idx*.04}s">
+      <button onclick="toggleCard('${t.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;transition:.2s" onmouseover="this.style.background='rgba(103,232,249,.03)'" onmouseout="this.style.background='none'">
+        <span class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);opacity:.5;width:22px;flex-shrink:0">${t.pinned?'📌':String(idx+1).padStart(2,'0')}</span>
+        <span class="syne" style="flex:1;font-size:14px;font-weight:700;color:var(--text);line-height:1.3;text-align:left">${hlText(t.title,q)}</span>
+        <span style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          ${(()=>{const p=prefixMap[t.author];const pc=prefixColorMap[t.author];const ps=prefixStyleMap[t.author];return p?renderPfxBadge(p,pc,ps):'';})()}
+          <span style="font-size:11px;color:var(--cyan);font-family:'Syne',sans-serif;font-weight:700">${esc(t.author)}</span>
+          <span style="font-size:10px;color:var(--muted);white-space:nowrap">${t.created_at}</span>
+        </span>
+        ${moveBtn}${pinBtn}${editBtn}${delBtn}
+        <svg class="chevron" id="chev-${t.id}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div class="cbody" id="body-${t.id}">
+        <div style="padding:0 20px 20px;border-top:1px solid var(--border)">
+          ${blocks}
+          <div class="divider"></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Комментарии</div>
+          <div id="cmts-${t.id}"></div>
+          ${commentInput}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  Prism.highlightAll();
+}
+
+function toggleCard(id) {
+  const b=document.getElementById('body-'+id), c=document.getElementById('chev-'+id);
+  const wasOpen=b.classList.contains('open');
+  b.classList.toggle('open'); c.classList.toggle('open');
+  if(!wasOpen) loadComments(id);
+}
+
+// ── Create topic ──────────────────────────────────────────────────────────────
+function toggleCreatePanel() {
+  createPanelOpen=!createPanelOpen;
+  document.getElementById('createFormInner').style.display=createPanelOpen?'':'none';
+}
+
+function addBlock(type) {
+  const id=++blockCounter, list=document.getElementById('blocksList');
+  const div=document.createElement('div'); div.id='bl-'+id; div.className='blk-ed';
+  div.innerHTML=blockHtml(id,type,'','javascript');
+  list.appendChild(div);
+}
+function blockHtml(id,type,content,lang,prefix='bl') {
+  if(type==='text') return `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:#a5b4fc;letter-spacing:.08em;text-transform:uppercase">Текст</span><button onclick="document.getElementById('${prefix}-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div><textarea class="fi fita" data-btype="text" style="border:none;border-radius:0;background:transparent" placeholder="Введите текст...">${esc(content)}</textarea>`;
+  if(type==='image') {
+    const preview=content?`<img src="${esc(content)}" style="max-width:100%;max-height:200px;border-radius:8px;margin:8px 12px;display:block">`:
+      `<div id="img-preview-${prefix}-${id}" style="padding:8px 12px"></div>`;
+    return `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.08em;text-transform:uppercase">Фото / Файл</span><button onclick="document.getElementById('${prefix}-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div>
+    <div style="padding:10px 12px">
+      ${content?`<div style="font-size:12px;color:var(--cyan);margin-bottom:6px">✓ Файл загружен</div><img src="${esc(content)}" style="max-width:100%;max-height:180px;border-radius:8px;display:block">`:
+        `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;background:rgba(255,255,255,.03);border:1px dashed var(--border);border-radius:9px" onmouseover="this.style.borderColor='rgba(103,232,249,.35)'" onmouseout="this.style.borderColor='var(--border)'">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--cyan)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span style="font-size:12px;color:var(--muted)">Нажмите чтобы выбрать фото или файл (макс 10MB)</span>
+          <input type="file" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar" style="display:none" onchange="handleBlockFile(event,'${prefix}-${id}')">
+        </label>
+        <div id="img-preview-${prefix}-${id}"></div>`}
+      <input type="hidden" data-btype="image" data-url="${esc(content||'')}">
+    </div>`;
+  }
+  const langs=['javascript','python','css','markup','sql','bash'];
+  const opts=langs.map(l=>`<option value="${l}" ${l===lang?'selected':''}>${l==='markup'?'HTML':l.charAt(0).toUpperCase()+l.slice(1)}</option>`).join('');
+  return `<div class="blk-head"><span class="syne" style="font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase">Код</span><div style="display:flex;gap:8px;align-items:center"><select class="fsel" data-lang>${opts}</select><button onclick="document.getElementById('${prefix}-${id}').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button></div></div><textarea class="fi fita" data-btype="code" style="border:none;border-radius:0;background:transparent;font-family:'JetBrains Mono',monospace;font-size:12px" placeholder="Вставьте код...">${esc(content)}</textarea>`;
+}
+
+async function publishTopic() {
+  const title=document.getElementById('fTitle').value.trim();
+  if(!title){showToast('Введите название',true);return;}
+  const blocks=collectBlocks('#blocksList');
+  if(!blocks.length){showToast('Добавьте хотя бы один блок',true);return;}
+  try {
+    await api('POST','/api/topics',{title,blocks});
+    document.getElementById('fTitle').value='';
+    document.getElementById('blocksList').innerHTML='';
+    blockCounter=0;
+    showToast('Тема опубликована ✦');
+  } catch(e){showToast(e.message,true);}
+}
+
+// ── Edit topic ────────────────────────────────────────────────────────────────
+function openEditModal(id) {
+  const t=topics.find(x=>x.id===id); if(!t) return;
+  editingTopicId=id;
+  document.getElementById('editTitle').value=t.title;
+  const list=document.getElementById('editBlocksList'); list.innerHTML=''; editBlockCounter=0;
+  (t.blocks||[]).forEach(b=>addEditBlock(b.type,b.content,b.language||'javascript'));
+  document.getElementById('editModal').classList.remove('hidden');
+}
+function closeEditModal(){document.getElementById('editModal').classList.add('hidden');editingTopicId=null;}
+
+function addEditBlock(type,content='',lang='javascript'){
+  const id=++editBlockCounter,list=document.getElementById('editBlocksList');
+  const div=document.createElement('div'); div.id='eb-'+id; div.className='blk-ed';
+  div.innerHTML=blockHtml(id,type,content,lang,'eb');
+  list.appendChild(div);
+}
+async function saveEdit(){
+  const title=document.getElementById('editTitle').value.trim();
+  if(!title){showToast('Введите название',true);return;}
+  const blocks=collectBlocks('#editBlocksList');
+  if(!blocks.length){showToast('Добавьте хотя бы один блок',true);return;}
+  try{await api('PUT','/api/topics/'+editingTopicId,{title,blocks});closeEditModal();showToast('Тема обновлена ✦');}
+  catch(e){showToast(e.message,true);}
+}
+async function deleteTopic(id){
+  if(!confirm('Удалить тему?'))return;
+  try{await api('DELETE','/api/topics/'+id);}catch(e){showToast(e.message,true);}
+}
+
+async function pinTopic(id) {
+  try {
+    const r = await api('POST', '/api/topics/'+id+'/pin');
+    showToast(r.pinned ? '📌 Тема закреплена' : 'Тема откреплена');
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function moveTopic(id, direction) {
+  try {
+    await api('POST', '/api/topics/'+id+'/move', { direction });
+  } catch(e) { showToast(e.message, true); }
+}
+
+function collectBlocks(selector) {
+  const blocks=[];
+  document.querySelectorAll(selector+' .blk-ed').forEach(el=>{
+    const ta=el.querySelector('textarea');
+    const imgInput=el.querySelector('input[data-btype="image"]');
+    if(imgInput){
+      const url=imgInput.dataset.url;
+      if(url) blocks.push({type:'image',content:url,language:null});
+      return;
+    }
+    const c=ta?.value.trim(); if(!c)return;
+    blocks.push({type:ta.dataset.btype,content:c,language:ta.dataset.btype==='code'?(el.querySelector('[data-lang]')?.value||'javascript'):null});
+  });
+  return blocks;
+}
+
+// ── File upload helpers ───────────────────────────────────────────────────────
+async function uploadFile(base64, mimeType) {
+  const r = await fetch('/api/upload', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-token':token||''},
+    body: JSON.stringify({data: base64, type: mimeType})
+  });
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.error||'Ошибка загрузки');
+  return d;
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=()=>resolve(fr.result.split(',')[1]);
+    fr.onerror=reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+async function handleBlockFile(event, blockId) {
+  const file=event.target.files[0]; if(!file) return;
+  const preview=document.getElementById('img-preview-'+blockId);
+  const input=document.querySelector('#'+blockId+' input[data-btype="image"]');
+  try {
+    showToast('Загружаю файл...');
+    const base64=await readFileAsBase64(file);
+    const result=await uploadFile(base64, file.type);
+    if(input) input.dataset.url=result.url;
+    if(preview){
+      if(result.type==='image'){
+        preview.innerHTML=`<img src="${result.url}" style="max-width:100%;max-height:180px;border-radius:8px;margin-top:8px;display:block">`;
+      } else {
+        preview.innerHTML=`<div style="margin-top:8px;font-size:12px;color:var(--cyan)">✓ ${file.name}</div>`;
+      }
+    }
+    showToast('Файл загружен ✦');
+  } catch(e){ showToast(e.message,true); }
+}
+
+// Comment file state
+const commentFiles = {};
+
+async function handleCommentFile(event, topicId) {
+  const file=event.target.files[0]; if(!file) return;
+  try {
+    showToast('Загружаю файл...');
+    const base64=await readFileAsBase64(file);
+    const result=await uploadFile(base64, file.type);
+    commentFiles[topicId]={url:result.url, type:result.type};
+    const box=document.getElementById('cmtFile-'+topicId);
+    const nameEl=document.getElementById('cmtFileName-'+topicId);
+    if(box){ box.style.display='flex'; }
+    if(nameEl){ nameEl.textContent='📎 '+file.name; }
+    showToast('Файл загружен ✦');
+  } catch(e){ showToast(e.message,true); }
+}
+
+function clearCommentFile(topicId) {
+  delete commentFiles[topicId];
+  const box=document.getElementById('cmtFile-'+topicId);
+  if(box) box.style.display='none';
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+async function loadComments(topicId) {
+  try{
+    const cs=await api('GET','/api/topics/'+topicId+'/comments');
+    const box=document.getElementById('cmts-'+topicId); if(!box)return;
+    box.innerHTML=''; cs.forEach(c=>addCommentDOM(c));
+  }catch(e){}
+}
+function addCommentDOM(c) {
+  const box=document.getElementById('cmts-'+c.topic_id); if(!box)return;
+  if(document.getElementById('cm-'+c.id))return;
+  const isAdmin=currentUser?.role==='admin';
+  const div=document.createElement('div'); div.id='cm-'+c.id; div.className='cmnt';
+
+  let fileHtml='';
+  if(c.file_url){
+    if(c.file_type==='image'){
+      fileHtml=`<div style="margin-top:7px;padding-left:31px"><img src="${esc(c.file_url)}" style="max-width:100%;max-height:320px;border-radius:9px;border:1px solid var(--border);cursor:pointer" onclick="window.open('${esc(c.file_url)}','_blank')"></div>`;
+    } else {
+      const fname=c.file_url.split('/').pop().split('?')[0]||'файл';
+      fileHtml=`<div style="margin-top:7px;padding-left:31px"><a href="${esc(c.file_url)}" target="_blank" style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:rgba(103,232,249,.06);border:1px solid rgba(103,232,249,.18);border-radius:8px;color:var(--cyan);font-size:12px;text-decoration:none"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>${esc(fname)}</a></div>`;
+    }
+  }
+
+  div.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--teal));display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="syne" style="font-size:10px;font-weight:800;color:#080b12">${c.author.charAt(0).toUpperCase()}</span></div>
+      <span class="syne" style="font-size:12px;font-weight:700;color:var(--text)">${esc(c.author)}</span>
+      <span style="font-size:11px;color:var(--muted)">${c.created_at}</span>
+    </div>
+    ${isAdmin?`<button onclick="deleteComment('${c.id}')" style="padding:3px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:5px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`:''}
+  </div>
+  ${c.content?`<div style="font-size:13px;color:var(--soft);line-height:1.6;padding-left:31px">${esc(c.content)}</div>`:''}
+  ${fileHtml}`;
+  box.appendChild(div);
+}
+async function submitComment(topicId){
+  const inp=document.getElementById('cmtIn-'+topicId);
+  const c=inp?.value.trim();
+  const fileData=commentFiles[topicId];
+  if(!c && !fileData) return;
+  try{
+    await api('POST','/api/topics/'+topicId+'/comments',{
+      content: c||'',
+      file_url: fileData?.url||null,
+      file_type: fileData?.type||null
+    });
+    inp.value='';
+    clearCommentFile(topicId);
+  }
+  catch(e){showToast(e.message,true);}
+}
+async function deleteComment(id){
+  try{await api('DELETE','/api/comments/'+id);}catch(e){showToast(e.message,true);}
+}
+
+// ── Admin panel ───────────────────────────────────────────────────────────────
+function openAdminSide(){document.getElementById('adminSide').classList.add('open');}
+function closeAdminSide(){document.getElementById('adminSide').classList.remove('open');dbResetAuth();}
+
+async function verifyPanel(){
+  try{
+    await api('POST','/api/panel/auth',{password:document.getElementById('panelPwInput').value});
+    document.getElementById('panelAuthBox').classList.add('hidden');
+    document.getElementById('panelContent').classList.remove('hidden');
+    loadInvites(); loadHistory(); loadModerationSettings();
+  }catch(e){document.getElementById('panelErr').classList.remove('hidden');}
+}
+
+function switchPanelTab(t){
+  ['invites','users','history','db','settings'].forEach(x=>{
+    const tabEl = document.getElementById('tab'+cap(x));
+    const btnEl = document.getElementById('pt'+cap(x));
+    if(tabEl) tabEl.classList.toggle('hidden',x!==t);
+    if(btnEl) btnEl.classList.toggle('active',x===t);
+  });
+  if(t==='invites') loadInvites();
+  if(t==='users') loadUsers();
+  if(t==='history') loadHistory();
+  if(t==='db') { /* auth handled by verifyDbAccess */ }
+  if(t==='settings') loadGuestsSetting();
+  if(t==='moderation') loadGuestsSetting();
+  if(t==='settings') loadGuestsSetting();
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+async function genInvite(){
+  try{const d=await api('POST','/api/admin/invite');showToast('Код: '+d.code);loadInvites();}
+  catch(e){showToast(e.message,true);}
+}
+async function loadInvites(){
+  try{
+    const codes=await api('GET','/api/admin/invites');
+    document.getElementById('invitesList').innerHTML=codes.length?codes.map(c=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid ${c.used?'var(--border)':'rgba(103,232,249,.15)'};border-radius:9px">
+        <div>
+          <span class="syne" style="font-size:14px;font-weight:700;letter-spacing:.1em;color:${c.used?'var(--muted)':'var(--cyan)'}">${c.code}</span>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px">${c.used?'Использован: '+c.used_by:'Активен · '+c.created_at}</div>
+        </div>
+        ${!c.used?`<button onclick='navigator.clipboard.writeText("${c.code}").then(()=>showToast("Скопировано!"))' class="btn btn-ghost btn-sm">⧉</button>`:''}
+      </div>`).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Кодов нет</div>';
+  }catch(e){}
+}
+
+const ROLE_CFG = {
+  admin:  {label:'Админ',     color:'var(--amber)'},
+  editor: {label:'Редактор',  color:'var(--violet)'},
+  user:   {label:'Участник',  color:'var(--cyan)'},
+  guest:  {label:'Гость',     color:'var(--muted)'},
+};
+
+async function loadUsers(){
+  try{
+    const users=await api('GET','/api/admin/users');
+    document.getElementById('usersList').innerHTML=users.map(u=>{
+      const rc=ROLE_CFG[u.role]||{label:u.role,color:'var(--soft)'};
+      const roleOpts=['admin','editor','user'].map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${ROLE_CFG[r].label}</option>`).join('');
+      const prefixVal = u.prefix||'';
+      return `<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:9px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,${rc.color},${rc.color}88);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="syne" style="font-size:10px;font-weight:800;color:#080b12">${u.username.charAt(0).toUpperCase()}</span></div>
+            <div>
+              <div class="syne" style="font-size:12px;font-weight:700;color:var(--text)">${esc(u.username)}</div>
+              <div style="font-size:10px;color:var(--muted)">${u.created_at}</div>
+            </div>
+          </div>
+          ${u.role!=='admin'?`<button onclick="deleteUser(${u.id},'${esc(u.username)}')" class="btn btn-rose btn-xs">Удалить</button>`:'<span style="font-size:10px;color:var(--amber)">Создатель</span>'}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted);min-width:36px">Роль:</span>
+            <select class="fsel" style="font-size:11px;padding:4px 8px" onchange="changeRole(${u.id},this.value)">${roleOpts}</select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+            <span style="font-size:11px;color:var(--muted);min-width:36px">Префикс:</span>
+            ${prefixVal ? renderPfxBadge(prefixVal, u.prefix_color||'', u.prefix_style||'solid') : '<span style="font-size:11px;color:var(--muted)">не задан</span>'}
+            <button onclick="openPfxModal(${u.id},'${esc(u.username)}')" class="btn btn-violet btn-xs" style="margin-left:auto">⚙ Настроить</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){}
+}
+async function deleteUser(id,name){
+  if(!confirm(`Удалить ${name}?`))return;
+  try{await api('DELETE','/api/admin/users/'+id);showToast('Удалён: '+name);loadUsers();}
+  catch(e){showToast(e.message,true);}
+}
+async function changeRole(id,role){
+  try{await api('POST','/api/admin/users/'+id+'/role',{role});showToast('Роль изменена → '+ROLE_CFG[role].label);loadUsers();}
+  catch(e){showToast(e.message,true);}
+}
+
+const ACTION_LABELS={
+  register:{label:'Регистрация',color:'var(--teal)'},
+  guest_login:{label:'Гость',color:'var(--muted)'},
+  login:{label:'Вход',color:'var(--cyan)'},
+  create_topic:{label:'Создал тему',color:'var(--violet)'},
+  edit_topic:{label:'Изм. тему',color:'var(--amber)'},
+  delete_topic:{label:'Удалил тему',color:'var(--rose)'},
+  comment:{label:'Коммент',color:'var(--soft)'},
+  delete_comment:{label:'Удалил коммент',color:'var(--rose)'},
+  create_invite:{label:'Создал код',color:'var(--teal)'},
+  delete_user:{label:'Удалил юзера',color:'var(--rose)'},
+  change_role:{label:'Сменил роль',color:'var(--amber)'},
+  change_site_password:{label:'Пароль сайта',color:'var(--amber)'},
+  change_panel_password:{label:'Пароль панели',color:'var(--amber)'},
+};
+async function loadHistory(){
+  try{
+    const rows=await api('GET','/api/admin/history');
+    document.getElementById('historyList').innerHTML=rows.length?rows.map(r=>{
+      const a=ACTION_LABELS[r.action]||{label:r.action,color:'var(--soft)'};
+      return `<div style="padding:9px 11px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span class="syne" style="font-size:11px;font-weight:700;color:var(--text)">${esc(r.actor)}</span>
+            <span class="hbadge" style="background:${a.color}22;color:${a.color};border:1px solid ${a.color}44">${a.label}</span>
+          </div>
+          <span style="font-size:10px;color:var(--muted)">${r.created_at}</span>
+        </div>
+        ${r.target?`<div style="font-size:11px;color:var(--soft);padding-left:2px">→ ${esc(r.target)}</div>`:''}
+        ${r.detail?`<div style="font-size:10px;color:var(--muted);padding-left:2px">${esc(r.detail)}</div>`:''}
+      </div>`;
+    }).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>';
+  }catch(e){}
+}
+
+async function changeSitePw(){
+  const p1=document.getElementById('newSitePw').value,p2=document.getElementById('newSitePw2').value;
+  if(!p1){showToast('Введите пароль',true);return;}
+  if(p1!==p2){showToast('Пароли не совпадают',true);return;}
+  try{await api('POST','/api/admin/change-site-password',{newPassword:p1});document.getElementById('newSitePw').value='';document.getElementById('newSitePw2').value='';showToast('Пароль сайта изменён ✦');}
+  catch(e){showToast(e.message,true);}
+}
+async function changePanelPw(){
+  const p1=document.getElementById('newPanelPw').value,p2=document.getElementById('newPanelPw2').value;
+  if(!p1){showToast('Введите пароль',true);return;}
+  if(p1!==p2){showToast('Пароли не совпадают',true);return;}
+  try{await api('POST','/api/admin/change-panel-password',{newPassword:p1});document.getElementById('newPanelPw').value='';document.getElementById('newPanelPw2').value='';showToast('Пароль панели изменён ✦');}
+  catch(e){showToast(e.message,true);}
+}
+
+
+// ── Prefix map ────────────────────────────────────────────────────────────────
+async function loadPrefixMap() {
+  try {
+    // Public endpoint — no auth needed, works for guests and logged-out users
+    const r = await fetch('/api/users/prefixes');
+    if (!r.ok) return;
+    const data = await r.json();
+    prefixMap = {};
+    prefixColorMap = {};
+    prefixStyleMap = {};
+    Object.entries(data).forEach(([u, info]) => {
+      if (typeof info === 'object') {
+        prefixMap[u] = info.prefix || '';
+        prefixColorMap[u] = info.color || '';
+        prefixStyleMap[u] = info.style || 'solid';
+      } else {
+        prefixMap[u] = info || '';
+      }
+    });
+
+    updateHeaderBadge();
+    if (topics.length) renderTopics();
+  } catch(e) {}
+}
+
+
+
+function updateHeaderBadge() {
+  if (!currentUser) return;
+  const rl = document.getElementById('roleLabel');
+  if (!rl) return;
+  const roleNames = { admin:'Администратор', editor:'Редактор', user:'Участник', guest:'Гость' };
+  const roleColors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
+  const prefix = prefixMap[currentUser.username];
+  const prefixColor = prefixColorMap[currentUser.username];
+  const prefixStyle = prefixStyleMap[currentUser.username] || 'solid';
+  if (prefix) {
+    const html = renderPfxBadge(prefix, prefixColor, prefixStyle);
+    rl.innerHTML = html;
+    rl.style.cssText = '';
+    rl.className = '';
+  } else {
+    rl.innerHTML = '';
+    rl.className = '';
+    rl.style.cssText = '';
+    rl.textContent = roleNames[currentUser.role] || currentUser.role;
+    rl.style.color = roleColors[currentUser.role] || 'var(--muted)';
+    rl.style.fontSize = '11px';
+  }
+}
+
+function getPrefix(username) {
+  return { text: prefixMap[username] || '', color: prefixColorMap[username] || '', style: prefixStyleMap[username] || 'solid' };
+}
+
+// ── Admin: guests toggle ──────────────────────────────────────────────────────
+async function loadGuestsSetting() {
+  try {
+    const d = await api('GET', '/api/admin/guests-setting');
+    guestsAllowed = d.allowed;
+    document.getElementById('guestStatusLabel').textContent = d.allowed ? '✓ Гости могут заходить' : '✕ Гостевой вход отключён';
+    document.getElementById('btnGuestAllow').style.opacity = d.allowed ? '1' : '0.5';
+    document.getElementById('btnGuestDeny').style.opacity = d.allowed ? '0.5' : '1';
+  } catch(e) {}
+}
+
+async function setGuestsAllowed(val) {
+  try {
+    await api('POST', '/api/admin/guests-toggle', { allowed: val });
+    showToast(val ? 'Гости разрешены ✦' : 'Гостевой вход запрещён');
+    loadGuestsSetting();
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: clear chat ─────────────────────────────────────────────────────────
+async function clearChat() {
+  if (!confirm('Удалить все сообщения в чате?')) return;
+  try { await api('DELETE', '/api/admin/chat'); showToast('Чат очищен ✦'); }
+  catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: clear history ──────────────────────────────────────────────────────
+async function clearHistory() {
+  if (!confirm('Удалить всю историю действий?')) return;
+  try {
+    await api('DELETE', '/api/admin/history');
+    document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">История пуста</div>';
+    showToast('История очищена ✦');
+  } catch(e) { showToast(e.message, true); }
+}
+
+// ── Admin: prefix ─────────────────────────────────────────────────────────────
+// ── Prefix badge renderer ────────────────────────────────────────────────────
+function renderPfxBadge(text, color, style) {
+  if (!text) return '';
+  const col = color || '#a78bfa';
+  const st = style || 'solid';
+  // These styles have their own animation colors, no need for CSS var
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  if (noColorStyles.includes(st)) {
+    return `<span class="pfx pfx-${st}">${esc(text)}</span>`;
+  }
+  return `<span class="pfx pfx-${st}" style="--pfx-c1:${col}">${esc(text)}</span>`;
+}
+
+// ── Prefix modal state ────────────────────────────────────────────────────────
+let pfxEditUserId = null;
+let pfxEditStyle = 'solid';
+
+function openPfxModal(userId, username) {
+  pfxEditUserId = userId;
+  pfxEditStyle = 'solid';
+  document.getElementById('pfxModalUsername').textContent = '@' + username;
+  // Load existing values from prefixMap
+  const existing = prefixMap[username] || '';
+  const existingColor = prefixColorMap[username] || '#a78bfa';
+  const existingStyle = prefixStyleMap[username] || 'solid';
+  document.getElementById('pfxText').value = existing;
+  document.getElementById('pfxColor').value = existingColor.startsWith('#') ? existingColor : '#a78bfa';
+  pfxEditStyle = existingStyle;
+  // Mark active style button
+  document.querySelectorAll('#pfxStyleGrid .pfx-style-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.style === pfxEditStyle);
+  });
+  updatePfxPreview();
+  document.getElementById('pfxModal').classList.remove('hidden');
+  // Update preview on input change
+  document.getElementById('pfxText').oninput = updatePfxPreview;
+  document.getElementById('pfxColor').oninput = updatePfxPreview;
+  document.getElementById('pfxColor2').oninput = updatePfxPreview;
+}
+
+function closePfxModal() {
+  document.getElementById('pfxModal').classList.add('hidden');
+  pfxEditUserId = null;
+}
+
+function selectPfxStyle(style, btn) {
+  pfxEditStyle = style;
+  document.querySelectorAll('#pfxStyleGrid .pfx-style-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Hide color pickers for styles that don't use custom color
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  const colorBlock = document.getElementById('pfxColorBlock');
+  if (colorBlock) colorBlock.style.opacity = noColorStyles.includes(style) ? '0.35' : '1';
+  document.getElementById('pfxColor2Wrap').style.display = style === 'gradient' ? '' : 'none';
+  updatePfxPreview();
+}
+
+function updatePfxPreview() {
+  const text = document.getElementById('pfxText').value || 'Пример';
+  const col = document.getElementById('pfxColor').value || '#a78bfa';
+  const col2 = document.getElementById('pfxColor2').value || '#67e8f9';
+  const st = pfxEditStyle;
+  const prev = document.getElementById('pfxPreview');
+  prev.className = 'pfx pfx-' + st;
+  prev.textContent = text;
+  const noColorStyles = ['rgb', 'fire', 'rainbow'];
+  if (noColorStyles.includes(st)) {
+    prev.removeAttribute('style');
+  } else {
+    prev.style.cssText = '--pfx-c1:' + col + ';--pfx-c2:' + col2;
+  }
+}
+
+async function applyPfx() {
+  if (!pfxEditUserId) return;
+  const val = document.getElementById('pfxText').value.trim();
+  const col = document.getElementById('pfxColor').value;
+  const col2 = document.getElementById('pfxColor2').value;
+  const st = pfxEditStyle;
+  // Find username for this id from DOM
+  const usernameEl = document.getElementById('pfxModalUsername');
+  const uname = usernameEl ? usernameEl.textContent.replace('@','').trim() : '';
+  try {
+    await api('POST', '/api/admin/users/'+pfxEditUserId+'/prefix', { prefix: val, color: col, color2: col2, style: st });
+    // Immediately update local maps so admin sees change without waiting for socket
+    if (uname) {
+      prefixMap[uname] = val;
+      prefixColorMap[uname] = col;
+      prefixStyleMap[uname] = st;
+      if (currentUser && currentUser.username === uname) updateHeaderBadge();
+    }
+    renderTopics();
+    loadUsers();
+    closePfxModal();
+    showToast('Префикс сохранён ✦');
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function clearPfx() {
+  if (!pfxEditUserId) return;
+  const usernameEl = document.getElementById('pfxModalUsername');
+  const uname = usernameEl ? usernameEl.textContent.replace('@','').trim() : '';
+  try {
+    await api('POST', '/api/admin/users/'+pfxEditUserId+'/prefix', { prefix: '', color: '', color2: '', style: 'solid' });
+    if (uname) {
+      prefixMap[uname] = '';
+      prefixColorMap[uname] = '';
+      prefixStyleMap[uname] = 'solid';
+      if (currentUser && currentUser.username === uname) updateHeaderBadge();
+    }
+    renderTopics();
+    loadUsers();
+    closePfxModal();
+    showToast('Префикс убран ✦');
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function savePrefix(id) {
+  // kept for compatibility - now replaced by modal
+}
+
+// ── Chat: delete message (admin) ──────────────────────────────────────────────
+async function deleteChatMsg(id) {
+  try {
+    await api('DELETE', '/api/admin/chat/'+id);
+  } catch(e) { showToast(e.message, true); }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PLAYGROUND (Monaco Editor)
+// ══════════════════════════════════════════════════════════════════════════════
+const pgCode = { html: '', css: '', js: '' };
+let pgCurrentTab = 'html';
+let pgAutoRunEnabled = true;
+let pgAutoRunTimer = null;
+let monacoEditor = null;
+let monacoReady = false;
+
+const pgLangMap = { html: 'html', css: 'css', js: 'javascript' };
+const pgLangColors = {
+  html: { bg: 'rgba(251,191,36,.15)', color: 'var(--amber)', label: 'HTML' },
+  css:  { bg: 'rgba(103,232,249,.12)', color: 'var(--cyan)',  label: 'CSS'  },
+  js:   { bg: 'rgba(167,139,250,.12)', color: 'var(--violet)', label: 'JS'  },
+};
+
+function initMonaco() {
+  if (monacoReady) return;
+  // Dynamically load Monaco loader to avoid conflicts with Prism
+  if (!window._monacoLoaderLoaded) {
+    window._monacoLoaderLoaded = true;
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
+    script.onload = () => _setupMonaco();
+    document.head.appendChild(script);
+    return;
+  }
+  _setupMonaco();
+}
+
+function _setupMonaco() {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+  require(['vs/editor/editor.main'], function() {
+    // Define dark theme matching site style
+    monaco.editor.defineTheme('starosta', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'tag', foreground: '67e8f9' },
+        { token: 'attribute.name', foreground: 'a78bfa' },
+        { token: 'attribute.value', foreground: '4ade80' },
+        { token: 'string', foreground: '4ade80' },
+        { token: 'keyword', foreground: 'fb7185' },
+        { token: 'comment', foreground: '475569', fontStyle: 'italic' },
+        { token: 'number', foreground: 'fbbf24' },
+        { token: 'type', foreground: '2dd4bf' },
+      ],
+      colors: {
+        'editor.background': '#080c18',
+        'editor.foreground': '#e2e8f0',
+        'editorLineNumber.foreground': '#334155',
+        'editorLineNumber.activeForeground': '#67e8f9',
+        'editor.lineHighlightBackground': '#0d1120',
+        'editorCursor.foreground': '#67e8f9',
+        'editor.selectionBackground': '#1e3a5f',
+        'editorIndentGuide.background': '#1e293b',
+        'editorIndentGuide.activeBackground': '#334155',
+        'editorWidget.background': '#0d1120',
+        'editorSuggestWidget.background': '#0d1120',
+        'editorSuggestWidget.border': '#1e3a5f',
+        'editorSuggestWidget.selectedBackground': '#1e3a5f',
+        'input.background': '#0d1120',
+        'scrollbarSlider.background': '#1e293b88',
+        'scrollbarSlider.hoverBackground': '#33415588',
+      }
+    });
+
+    monacoEditor = monaco.editor.create(document.getElementById('pgMonacoEditor'), {
+      value: pgCode[pgCurrentTab],
+      language: pgLangMap[pgCurrentTab],
+      theme: 'starosta',
+      fontSize: 14,
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+      fontLigatures: true,
+      lineHeight: 22,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 2,
+      insertSpaces: true,
+      wordWrap: 'on',
+      suggestOnTriggerCharacters: true,
+      quickSuggestions: { other: true, comments: false, strings: true },
+      acceptSuggestionOnEnter: 'on',
+      snippetSuggestions: 'top',
+      formatOnPaste: true,
+      formatOnType: true,
+      bracketPairColorization: { enabled: true },
+      renderWhitespace: 'selection',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorSmoothCaretAnimation: 'on',
+      padding: { top: 16, bottom: 16 },
+    });
+
+    // Auto-run on change
+    monacoEditor.onDidChangeModelContent(() => {
+      pgCode[pgCurrentTab] = monacoEditor.getValue();
+      if (!pgAutoRunEnabled) return;
+      clearTimeout(pgAutoRunTimer);
+      pgAutoRunTimer = setTimeout(pgRun, 700);
+    });
+
+    monacoReady = true;
+    console.log('Monaco Editor ready');
+  });
+}
+
+function openPlayground() {
+  document.getElementById('playgroundWin').classList.add('open');
+  if (!monacoReady) {
+    setTimeout(initMonaco, 100);
+  } else {
+    setTimeout(() => { monacoEditor && monacoEditor.focus(); }, 300);
+  }
+}
+
+function closePlayground() {
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
+  document.getElementById('playgroundWin').classList.remove('open');
+}
+
+function pgSetMode(mode) {
+  const edCol = document.getElementById('pgEditorCol');
+  const pvCol = document.getElementById('pgPreviewCol');
+  const btnEd = document.getElementById('pgModeEditor');
+  const btnPv = document.getElementById('pgModePreview');
+  if (mode === 'editor') {
+    edCol.style.display = 'flex';
+    pvCol.style.display = 'none';
+    btnEd.classList.add('active');
+    btnPv.classList.remove('active');
+    setTimeout(() => monacoEditor && monacoEditor.layout(), 50);
+  } else {
+    pgRun();
+    edCol.style.display = 'none';
+    pvCol.style.display = 'flex';
+    btnEd.classList.remove('active');
+    btnPv.classList.add('active');
+  }
+}
+
+function switchPgTab(tab) {
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
+  pgCurrentTab = tab;
+
+  ['html','css','js'].forEach(t => {
+    const id = 'pgTab' + t.charAt(0).toUpperCase() + t.slice(1);
+    document.getElementById(id)?.classList.toggle('active', t === tab);
+  });
+
+  const lc = pgLangColors[tab];
+  const badge = document.getElementById('pgLangLabel');
+  badge.textContent = lc.label;
+  badge.style.background = lc.bg;
+  badge.style.color = lc.color;
+
+  if (monacoEditor && monacoReady) {
+    const model = monaco.editor.createModel(pgCode[tab], pgLangMap[tab]);
+    monacoEditor.setModel(model);
+    monacoEditor.focus();
+  }
+}
+
+function pgKeydown(e) { /* handled by Monaco */ }
+function pgAutoRun() { /* handled by Monaco onDidChangeModelContent */ }
+
+function pgToggleAutoRun() {
+  pgAutoRunEnabled = !pgAutoRunEnabled;
+  document.getElementById('pgAutoRunLabel').textContent = pgAutoRunEnabled ? '● авто' : '○ авто';
+  document.getElementById('pgAutoRunLabel').style.color = pgAutoRunEnabled ? 'var(--teal)' : 'var(--muted)';
+  document.getElementById('pgAutoRunBtn').textContent = pgAutoRunEnabled ? 'Выкл' : 'Вкл';
+}
+
+function pgBuildDoc() {
+  if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
+  const openTag = '<scr'+'ipt>';
+  const closeTag = '</scr'+'ipt>';
+  return '<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<style>\n'
+    + pgCode.css
+    + '\n</style>\n</head>\n<body>\n'
+    + pgCode.html
+    + '\n' + openTag + '\ntry {\n'
+    + pgCode.js
+    + '\n} catch(e) {\n  document.body.insertAdjacentHTML(\'beforeend\',\'<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#dc2626;color:#fff;font-family:monospace;font-size:12px;z-index:9999">\u26a0 \'+e.message+\'</div>\');\n}\n'
+    + closeTag
+    + '\n</body>\n</html>';
+}
+
+function pgRun() {
+  document.getElementById('pgPreview').srcdoc = pgBuildDoc();
+}
+
+function pgOpenNewTab() {
+  const blob = new Blob([pgBuildDoc()], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function pgClear() {
+  if (!confirm('Очистить все вкладки?')) return;
+  pgCode.html = ''; pgCode.css = ''; pgCode.js = '';
+  if (monacoEditor) monacoEditor.setValue('');
+  pgRun();
+}
+
+function pgInsertSnippet() {
+  const snippets = {
+    html: `<!DOCTYPE html>\n<html lang="ru">\n<head>\n  <meta charset="UTF-8">\n  <title>Мой сайт</title>\n</head>\n<body>\n  <h1>Привет, мир!</h1>\n  <p>Начни редактировать здесь</p>\n</body>\n</html>`,
+    css:  `* { box-sizing: border-box; margin: 0; padding: 0; }\nbody {\n  font-family: 'Segoe UI', sans-serif;\n  background: #0f172a;\n  color: #e2e8f0;\n  padding: 20px;\n}\nh1 { color: #67e8f9; margin-bottom: 10px; }`,
+    js:   `document.addEventListener('DOMContentLoaded', () => {\n  console.log('Страница загружена');\n\n  const h1 = document.querySelector('h1');\n  if (h1) {\n    h1.addEventListener('click', () => {\n      h1.style.color = '#' + Math.floor(Math.random()*16777215).toString(16);\n    });\n  }\n});`,
+  };
+  const val = snippets[pgCurrentTab];
+  pgCode[pgCurrentTab] = val;
+  if (monacoEditor) {
+    monacoEditor.setValue(val);
+    monacoEditor.focus();
+  }
+  if (pgAutoRunEnabled) pgRun();
+}
+
+
+
+
+init();
+loadChatHistory();
+</script>
+</body>
+</html>
