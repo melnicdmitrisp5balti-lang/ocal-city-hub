@@ -194,6 +194,11 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .pfx-modal-box{background:rgba(8,11,18,.99);border:1px solid var(--border2);border-radius:20px;padding:26px;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.8)}
 .pfx-style-btn{padding:8px 14px;border-radius:9px;border:1px solid var(--border);background:rgba(255,255,255,.03);cursor:pointer;transition:.2s;text-align:center}
 .pfx-style-btn:hover,.pfx-style-btn.active{border-color:rgba(103,232,249,.4);background:rgba(103,232,249,.07)}
+
+/* ── Pinned topics ──────────────────────────────────────────────────────────── */
+.card-pinned{border-color:rgba(251,191,36,.3)!important;background:rgba(251,191,36,.03)!important}
+.card-pinned:hover{border-color:rgba(251,191,36,.5)!important;box-shadow:0 8px 32px rgba(251,191,36,.08),0 2px 8px rgba(0,0,0,.4)!important}
+.pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-family:'Syne',sans-serif;font-weight:700;color:var(--amber);letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -527,6 +532,14 @@ try {
   socket.on('topic_deleted', id => { topics=topics.filter(t=>t.id!==id); renderTopics(); });
   socket.on('comment_added',  c  => addCommentDOM(c));
   socket.on('comment_deleted',id => document.getElementById('cm-'+id)?.remove());
+  socket.on('topic_pinned', d => {
+    const t = topics.find(x => x.id === d.id);
+    if (t) { t.pinned = d.pinned; renderTopics(); }
+  });
+  socket.on('topics_reordered', newTopics => {
+    topics = newTopics;
+    renderTopics();
+  });
   socket.on('settings_update', s => { if(s.guests_allowed !== undefined) { /* handled globally */ } });
   socket.on('user_updated', u => {
     if (currentUser && currentUser.username === u.username) {
@@ -680,6 +693,8 @@ function renderTopics() {
     }).join('');
 
     const editBtn=canEdit?`<button onclick="event.stopPropagation();openEditModal('${t.id}')" title="Редактировать" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>`:'';
+    const pinBtn=canEdit?`<button onclick="event.stopPropagation();pinTopic('${t.id}')" title="${t.pinned?'Открепить':'Закрепить'}" style="padding:5px;background:none;border:none;cursor:pointer;color:${t.pinned?'var(--amber)':'var(--muted)'};border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='${t.pinned?'var(--amber)':'var(--muted)'}'"><svg width="13" height="13" fill="${t.pinned?'currentColor':'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg></button>`:'';
+    const moveBtn=canEdit?`<button onclick="event.stopPropagation();moveTopic('${t.id}','up')" title="Выше" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></button><button onclick="event.stopPropagation();moveTopic('${t.id}','down')" title="Ниже" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>`:'';
     const delBtn=isAdmin?`<button onclick="event.stopPropagation();deleteTopic('${t.id}')" title="Удалить" style="padding:5px;background:none;border:none;cursor:pointer;color:var(--muted);border-radius:7px;transition:.2s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>`:'';
 
     const isGuest=currentUser?.role==='guest';
@@ -700,16 +715,16 @@ function renderTopics() {
           </div>
         </div>`;
 
-    return `<div class="card" style="animation-delay:${idx*.04}s">
+    return `<div class="card ${t.pinned?'card-pinned':''}" style="animation-delay:${idx*.04}s">
       <button onclick="toggleCard('${t.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;transition:.2s" onmouseover="this.style.background='rgba(103,232,249,.03)'" onmouseout="this.style.background='none'">
-        <span class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);opacity:.5;width:22px;flex-shrink:0">${String(idx+1).padStart(2,'0')}</span>
+        <span class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);opacity:.5;width:22px;flex-shrink:0">${t.pinned?'📌':String(idx+1).padStart(2,'0')}</span>
         <span class="syne" style="flex:1;font-size:14px;font-weight:700;color:var(--text);line-height:1.3;text-align:left">${hlText(t.title,q)}</span>
         <span style="display:flex;align-items:center;gap:5px;flex-shrink:0">
           ${(()=>{const p=prefixMap[t.author];const pc=prefixColorMap[t.author];const ps=prefixStyleMap[t.author];return p?renderPfxBadge(p,pc,ps):'';})()}
           <span style="font-size:11px;color:var(--cyan);font-family:'Syne',sans-serif;font-weight:700">${esc(t.author)}</span>
           <span style="font-size:10px;color:var(--muted);white-space:nowrap">${t.created_at}</span>
         </span>
-        ${editBtn}${delBtn}
+        ${moveBtn}${pinBtn}${editBtn}${delBtn}
         <svg class="chevron" id="chev-${t.id}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div class="cbody" id="body-${t.id}">
@@ -810,6 +825,19 @@ async function saveEdit(){
 async function deleteTopic(id){
   if(!confirm('Удалить тему?'))return;
   try{await api('DELETE','/api/topics/'+id);}catch(e){showToast(e.message,true);}
+}
+
+async function pinTopic(id) {
+  try {
+    const r = await api('POST', '/api/topics/'+id+'/pin');
+    showToast(r.pinned ? '📌 Тема закреплена' : 'Тема откреплена');
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function moveTopic(id, direction) {
+  try {
+    await api('POST', '/api/topics/'+id+'/move', { direction });
+  } catch(e) { showToast(e.message, true); }
 }
 
 function collectBlocks(selector) {

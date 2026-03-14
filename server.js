@@ -121,6 +121,15 @@ async function initDB() {
   try { await run("ALTER TABLE comments ADD COLUMN file_url TEXT"); } catch(e) {}
   try { await run("ALTER TABLE comments ADD COLUMN file_type TEXT"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE topics ADD COLUMN pinned INTEGER DEFAULT 0"); } catch(e) {}
+  try { await run("ALTER TABLE topics ADD COLUMN sort_order INTEGER DEFAULT 0"); } catch(e) {}
+  // Init sort_order for existing topics
+  try {
+    const tops = await q("SELECT id FROM topics ORDER BY created_at ASC");
+    for (let i = 0; i < tops.length; i++) {
+      await run("UPDATE topics SET sort_order=? WHERE id=? AND sort_order=0", [i+1, tops[i].id]);
+    }
+  } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
@@ -131,6 +140,15 @@ async function initDB() {
   const guestSetting = await q1("SELECT value FROM settings WHERE key='guests_allowed'");
   if (!guestSetting) await run("INSERT INTO settings (key,value) VALUES ('guests_allowed','1')");
   try { await run("ALTER TABLE users ADD COLUMN prefix TEXT DEFAULT ''"); } catch(e) {}
+  try { await run("ALTER TABLE topics ADD COLUMN pinned INTEGER DEFAULT 0"); } catch(e) {}
+  try { await run("ALTER TABLE topics ADD COLUMN sort_order INTEGER DEFAULT 0"); } catch(e) {}
+  // Init sort_order for existing topics
+  try {
+    const tops = await q("SELECT id FROM topics ORDER BY created_at ASC");
+    for (let i = 0; i < tops.length; i++) {
+      await run("UPDATE topics SET sort_order=? WHERE id=? AND sort_order=0", [i+1, tops[i].id]);
+    }
+  } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE sessions ADD COLUMN prefix_color TEXT DEFAULT ''"); } catch(e) {}
   try { await run("ALTER TABLE users ADD COLUMN prefix_style TEXT DEFAULT 'solid'"); } catch(e) {}
@@ -417,7 +435,7 @@ app.get('/api/admin/history', requireAdmin, async (req, res) => {
 
 app.get('/api/topics', async (req, res) => {
   try {
-    const rows = await q("SELECT * FROM topics ORDER BY created_at DESC");
+    const rows = await q("SELECT * FROM topics ORDER BY pinned DESC, sort_order ASC, created_at DESC");
     res.json(rows.map(t => ({ ...t, blocks: JSON.parse(t.blocks) })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -463,6 +481,47 @@ app.delete('/api/topics/:id', requireEditor, async (req, res) => {
     io.emit('topic_deleted', req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ── Pin / Unpin topic ─────────────────────────────────────────────────────────
+app.post('/api/topics/:id/pin', requireEditor, async (req, res) => {
+  try {
+    const t = await q1("SELECT * FROM topics WHERE id=?", [req.params.id]);
+    if (!t) return res.status(404).json({ error: 'Не найдено' });
+    const newPinned = t.pinned ? 0 : 1;
+    await run("UPDATE topics SET pinned=? WHERE id=?", [newPinned, req.params.id]);
+    await addHistory(req.user.username, newPinned ? 'pin_topic' : 'unpin_topic', t.title, null);
+    io.emit('topic_pinned', { id: req.params.id, pinned: newPinned });
+    res.json({ ok: true, pinned: newPinned });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Move topic up / down ──────────────────────────────────────────────────────
+app.post('/api/topics/:id/move', requireEditor, async (req, res) => {
+  try {
+    const { direction } = req.body; // 'up' or 'down'
+    const all = await q("SELECT id, sort_order, pinned FROM topics ORDER BY pinned DESC, sort_order ASC, created_at DESC");
+    const idx = all.findIndex(t => t.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Не найдено' });
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= all.length) return res.json({ ok: true }); // already at edge
+
+    const a = all[idx];
+    const b = all[swapIdx];
+
+    // Assign numeric sort_order if missing
+    const orderA = Number(a.sort_order) || idx + 1;
+    const orderB = Number(b.sort_order) || swapIdx + 1;
+
+    await run("UPDATE topics SET sort_order=? WHERE id=?", [orderB, a.id]);
+    await run("UPDATE topics SET sort_order=? WHERE id=?", [orderA, b.id]);
+
+    const rows = await q("SELECT * FROM topics ORDER BY pinned DESC, sort_order ASC, created_at DESC");
+    io.emit('topics_reordered', rows.map(t => ({ ...t, blocks: JSON.parse(t.blocks) })));
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
