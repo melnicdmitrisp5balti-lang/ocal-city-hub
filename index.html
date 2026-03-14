@@ -199,6 +199,21 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .card-pinned{border-color:rgba(251,191,36,.3)!important;background:rgba(251,191,36,.03)!important}
 .card-pinned:hover{border-color:rgba(251,191,36,.5)!important;box-shadow:0 8px 32px rgba(251,191,36,.08),0 2px 8px rgba(0,0,0,.4)!important}
 .pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-family:'Syne',sans-serif;font-weight:700;color:var(--amber);letter-spacing:.04em}
+
+/* ── Playground ─────────────────────────────────────────────────────────────── */
+.pg-win{position:fixed;inset:0;z-index:80;background:rgba(6,9,16,.98);display:flex;flex-direction:column;transform:translateY(100%);transition:.35s cubic-bezier(.22,.68,0,1.2)}
+.pg-win.open{transform:translateY(0)}
+.pg-header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(8,11,18,.95)}
+.pg-tabs{display:flex;gap:3px;background:rgba(255,255,255,.03);border-radius:9px;padding:3px}
+.pg-tab{padding:5px 14px;border-radius:6px;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:none;background:none;color:var(--muted);transition:.2s}
+.pg-tab.active{background:rgba(103,232,249,.12);color:var(--cyan)}
+.pg-body{flex:1;display:flex;overflow:hidden}
+.pg-editor-col{width:50%;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.pg-preview-col{flex:1;display:flex;flex-direction:column;background:#fff}
+.pg-editor-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(11,15,26,.9)}
+.pg-editor{flex:1;resize:none;background:#080c18;color:#e2e8f0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:13px;line-height:1.7;padding:16px;border:none;outline:none;overflow-y:auto;tab-size:2}
+.pg-preview-col iframe{flex:1;border:none;width:100%;height:100%}
+.pg-lang-badge{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:5px}
 </style>
 </head>
 <body>
@@ -323,6 +338,11 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
       </button>
     </div>
+
+    <!-- Playground btn -->
+    <button id="playgroundBtn" class="ibtn hidden" onclick="openPlayground()" title="Тестирование кода">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+    </button>
 
     <!-- Admin panel btn -->
     <button id="adminPanelBtn" class="ibtn hidden" onclick="openAdminSide()" title="Панель администратора">
@@ -614,6 +634,7 @@ function showApp() {
 
   if (currentUser.role === 'admin') document.getElementById('adminPanelBtn').classList.remove('hidden');
   if (EDITOR_ROLES.includes(currentUser.role)) document.getElementById('createPanel').classList.remove('hidden');
+  if (currentUser.role !== 'guest') document.getElementById('playgroundBtn').classList.remove('hidden');
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -1345,6 +1366,165 @@ async function deleteChatMsg(id) {
   } catch(e) { showToast(e.message, true); }
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PLAYGROUND
+// ══════════════════════════════════════════════════════════════════════════════
+const pgCode = { html: '', css: '', js: '' };
+let pgCurrentTab = 'html';
+let pgAutoRunEnabled = true;
+let pgAutoRunTimer = null;
+
+const pgLangColors = {
+  html: { bg: 'rgba(251,191,36,.15)', color: 'var(--amber)', label: 'HTML' },
+  css:  { bg: 'rgba(103,232,249,.12)', color: 'var(--cyan)',  label: 'CSS'  },
+  js:   { bg: 'rgba(167,139,250,.12)', color: 'var(--violet)', label: 'JS'  },
+};
+
+function openPlayground() {
+  document.getElementById('playgroundWin').classList.add('open');
+  setTimeout(() => document.getElementById('pgEditor').focus(), 300);
+}
+function closePlayground() {
+  // Save current tab before closing
+  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  document.getElementById('playgroundWin').classList.remove('open');
+}
+
+function switchPgTab(tab) {
+  // Save current
+  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  pgCurrentTab = tab;
+
+  // Load new tab content
+  const editor = document.getElementById('pgEditor');
+  editor.value = pgCode[tab];
+  editor.placeholder = tab === 'html' ? 'Введите HTML код...' : tab === 'css' ? 'Введите CSS стили...' : 'Введите JavaScript код...';
+
+  // Update tab active state
+  ['html','css','js'].forEach(t => {
+    document.getElementById('pgTab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle('active', t === tab);
+  });
+
+  // Update lang badge
+  const lc = pgLangColors[tab];
+  const badge = document.getElementById('pgLangLabel');
+  badge.textContent = lc.label;
+  badge.style.background = lc.bg;
+  badge.style.color = lc.color;
+}
+
+function pgKeydown(e) {
+  // Tab key inserts 2 spaces
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + 2;
+    pgAutoRun();
+  }
+}
+
+function pgAutoRun() {
+  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  if (!pgAutoRunEnabled) return;
+  clearTimeout(pgAutoRunTimer);
+  pgAutoRunTimer = setTimeout(pgRun, 600);
+}
+
+function pgToggleAutoRun() {
+  pgAutoRunEnabled = !pgAutoRunEnabled;
+  document.getElementById('pgAutoRunLabel').textContent = pgAutoRunEnabled ? '● авто-обновление' : '○ авто-обновление';
+  document.getElementById('pgAutoRunLabel').style.color = pgAutoRunEnabled ? 'var(--teal)' : 'var(--muted)';
+  document.getElementById('pgAutoRunBtn').textContent = pgAutoRunEnabled ? 'Выкл' : 'Вкл';
+}
+
+function pgBuildDoc() {
+  pgCode[pgCurrentTab] = document.getElementById('pgEditor').value;
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+${pgCode.css}
+</style>
+</head>
+<body>
+${pgCode.html}
+<script>
+try {
+${pgCode.js}
+} catch(e) {
+  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#ff3b3b;color:#fff;font-family:monospace;font-size:13px;z-index:9999">⚠ ' + e.message + '</div>');
+}
+<\/script>
+</body>
+</html>`;
+}
+
+function pgRun() {
+  const iframe = document.getElementById('pgPreview');
+  const doc = pgBuildDoc();
+  iframe.srcdoc = doc;
+}
+
+function pgOpenNewTab() {
+  const doc = pgBuildDoc();
+  const blob = new Blob([doc], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function pgClear() {
+  if (!confirm('Очистить все вкладки?')) return;
+  pgCode.html = ''; pgCode.css = ''; pgCode.js = '';
+  document.getElementById('pgEditor').value = '';
+  pgRun();
+}
+
+function pgInsertSnippet() {
+  const snippets = {
+    html: `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мой сайт</title>
+</head>
+<body>
+  <h1>Привет, мир!</h1>
+  <p>Начни редактировать здесь</p>
+</body>
+</html>`,
+    css: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 20px;
+}
+h1 { color: #67e8f9; margin-bottom: 10px; }`,
+    js: `// JavaScript пример
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Страница загружена');
+  
+  const h1 = document.querySelector('h1');
+  if (h1) {
+    h1.addEventListener('click', () => {
+      h1.style.color = '#' + Math.floor(Math.random()*16777215).toString(16);
+    });
+  }
+});`,
+  };
+  const ta = document.getElementById('pgEditor');
+  ta.value = snippets[pgCurrentTab];
+  pgCode[pgCurrentTab] = ta.value;
+  if (pgAutoRunEnabled) pgRun();
+}
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 function hlText(text,q){if(!q)return esc(text);return esc(text).replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');}
@@ -1781,6 +1961,67 @@ loadChatHistory();
     <div style="display:flex;gap:10px">
       <button onclick="clearPfx()" class="btn btn-rose" style="flex:1;justify-content:center">Убрать префикс</button>
       <button onclick="applyPfx()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════ PLAYGROUND ════════════════════════════════════ -->
+<div id="playgroundWin" class="pg-win">
+  <!-- Header -->
+  <div class="pg-header">
+    <div class="logo" style="width:30px;height:30px;flex-shrink:0">
+      <svg width="14" height="14" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+    </div>
+    <div class="syne" style="font-size:14px;font-weight:800;color:var(--text)">Тестирование</div>
+
+    <!-- Lang tabs -->
+    <div class="pg-tabs" style="margin-left:8px">
+      <button class="pg-tab active" id="pgTabHtml" onclick="switchPgTab('html')">HTML</button>
+      <button class="pg-tab" id="pgTabCss" onclick="switchPgTab('css')">CSS</button>
+      <button class="pg-tab" id="pgTabJs" onclick="switchPgTab('js')">JS</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+      <button onclick="pgRun()" class="btn btn-cyan btn-sm">
+        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        Запустить
+      </button>
+      <button onclick="pgOpenNewTab()" class="btn btn-ghost btn-sm" title="Открыть в новой вкладке">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Новая вкладка
+      </button>
+      <button onclick="pgClear()" class="btn btn-ghost btn-sm">Очистить</button>
+      <button onclick="closePlayground()" class="ibtn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Body: editor + preview -->
+  <div class="pg-body">
+    <!-- Editor side -->
+    <div class="pg-editor-col">
+      <div class="pg-editor-header">
+        <span id="pgLangLabel" class="pg-lang-badge" style="background:rgba(251,191,36,.15);color:var(--amber)">HTML</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="pgInsertSnippet()" class="btn btn-ghost btn-xs">Сниппет</button>
+          <span style="font-size:10px;color:var(--muted);align-self:center">Tab = 2 пробела</span>
+        </div>
+      </div>
+      <textarea id="pgEditor" class="pg-editor" placeholder="Введите HTML код..." spellcheck="false" onkeydown="pgKeydown(event)" oninput="pgAutoRun()"></textarea>
+    </div>
+
+    <!-- Preview side -->
+    <div class="pg-preview-col" style="display:flex;flex-direction:column">
+      <div class="pg-editor-header" style="background:rgba(255,255,255,.05)">
+        <span style="font-size:11px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700">ПРЕДПРОСМОТР</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="pgAutoRunLabel" style="font-size:10px;color:var(--teal)">● авто-обновление</span>
+          <button onclick="pgToggleAutoRun()" id="pgAutoRunBtn" class="btn btn-ghost btn-xs">Выкл</button>
+        </div>
+      </div>
+      <iframe id="pgPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" style="flex:1;border:none;background:#fff"></iframe>
     </div>
   </div>
 </div>
