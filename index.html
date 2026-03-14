@@ -618,6 +618,140 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
     <div style="font-size:13px;color:var(--muted)">Администратор ещё не добавил темы</div>
   </div>
 </main>
+<!-- ══════════════════════════ CHAT ═══════════════════════════════════════ -->
+<button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Чат">
+  <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+  <span class="unread hidden" id="chatUnread">0</span>
+</button>
+
+<div class="chat-win" id="chatWin">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="logo" style="width:32px;height:32px"><svg width="15" height="15" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+      <div>
+        <div class="syne" style="font-size:13px;font-weight:800;color:var(--text)">Общий чат</div>
+        <div id="chatOnline" style="font-size:10px;color:var(--teal)">● онлайн</div>
+      </div>
+    </div>
+    <button onclick="toggleChat()" class="ibtn"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+  </div>
+  <div class="chat-msgs" id="chatMsgs"></div>
+  <div id="chatAttachPreview" style="display:none;padding:8px 12px;border-top:1px solid var(--border);background:rgba(6,9,16,.98)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span id="chatAttachName" style="font-size:12px;color:var(--cyan)"></span>
+      <button onclick="clearChatAttach()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button>
+    </div>
+  </div>
+  <div class="chat-input-bar">
+    <label class="chat-icon-btn" title="Прикрепить фото">
+      <input type="file" accept="image/*" style="display:none" onchange="handleChatFile(event)">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </label>
+    <textarea class="chat-ta" id="chatInput" placeholder="Сообщение..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResizeChatTa(this)"></textarea>
+    <button class="chat-icon-btn" id="voiceBtn" title="Голосовое" onclick="toggleVoiceRecord()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"/></svg>
+    </button>
+    <button class="chat-icon-btn" id="chatSendBtn" onclick="sendChatMessage()" style="background:rgba(103,232,249,.12);border-color:rgba(103,232,249,.3);color:var(--cyan)">
+      <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+    </button>
+  </div>
+  <div id="recTimerRow" style="display:none;padding:4px 16px 10px">
+    <span class="rec-timer" id="recTimerLabel">● 0:00</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:8px">Нажмите микрофон ещё раз чтобы остановить</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════ PREFIX EDITOR MODAL ═══════════════════════════ -->
+<div id="pfxModal" class="pfx-modal hidden">
+  <div class="pfx-modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div class="syne" style="font-size:16px;font-weight:800;color:var(--text)">Настройка префикса</div>
+        <div id="pfxModalUsername" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="closePfxModal()" class="ibtn"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div style="margin-bottom:16px">
+      <label class="flabel">Текст префикса</label>
+      <input id="pfxText" class="fi" placeholder="например: 🔥 Босс" maxlength="20" style="margin-bottom:10px">
+      <div id="pfxColorBlock" style="display:flex;gap:10px;align-items:center;transition:.2s">
+        <div style="flex:1">
+          <label class="flabel">Основной цвет</label>
+          <input type="color" id="pfxColor" value="#a78bfa" style="width:100%;height:36px;border:1px solid var(--border);border-radius:9px;background:none;cursor:pointer;padding:3px 6px">
+        </div>
+        <div style="flex:1" id="pfxColor2Wrap">
+          <label class="flabel">Второй цвет</label>
+          <input type="color" id="pfxColor2" value="#67e8f9" style="width:100%;height:36px;border:1px solid var(--border);border-radius:9px;background:none;cursor:pointer;padding:3px 6px">
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:18px">
+      <label class="flabel">Стиль</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px" id="pfxStyleGrid">
+        <div class="pfx-style-btn active" data-style="solid" onclick="selectPfxStyle('solid',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Обычный</div><span class="pfx pfx-solid" style="--pfx-c1:#a78bfa">Пример</span></div>
+        <div class="pfx-style-btn" data-style="glow" onclick="selectPfxStyle('glow',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Свечение</div><span class="pfx pfx-glow" style="--pfx-c1:#67e8f9">Пример</span></div>
+        <div class="pfx-style-btn" data-style="rgb" onclick="selectPfxStyle('rgb',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">RGB</div><span class="pfx pfx-rgb">Пример</span></div>
+        <div class="pfx-style-btn" data-style="pulse" onclick="selectPfxStyle('pulse',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Пульс</div><span class="pfx pfx-pulse" style="--pfx-c1:#fb7185">Пример</span></div>
+        <div class="pfx-style-btn" data-style="neon" onclick="selectPfxStyle('neon',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Неон</div><span class="pfx pfx-neon" style="--pfx-c1:#4ade80">Пример</span></div>
+        <div class="pfx-style-btn" data-style="fire" onclick="selectPfxStyle('fire',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Огонь</div><span class="pfx pfx-fire">Пример</span></div>
+        <div class="pfx-style-btn" data-style="rainbow" onclick="selectPfxStyle('rainbow',this)"><div style="margin-bottom:5px;font-size:10px;color:var(--muted)">Радуга</div><span class="pfx pfx-rainbow">Пример</span></div>
+      </div>
+    </div>
+    <div style="margin-bottom:18px;padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;text-align:center">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;font-family:'Syne',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Предпросмотр</div>
+      <span id="pfxPreview" class="pfx pfx-solid" style="--pfx-c1:#a78bfa">Пример</span>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="clearPfx()" class="btn btn-rose" style="flex:1;justify-content:center">Убрать префикс</button>
+      <button onclick="applyPfx()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ PLAYGROUND ════════════════════════════════════ -->
+<div id="playgroundWin" class="pg-win">
+  <div class="pg-header">
+    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden">
+      <div class="logo" style="width:28px;height:28px;flex-shrink:0"><svg width="13" height="13" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg></div>
+      <div class="syne" style="font-size:13px;font-weight:800;color:var(--text);flex-shrink:0">Тест</div>
+      <div class="pg-tabs">
+        <button class="pg-tab active" id="pgTabHtml" onclick="switchPgTab('html')">HTML</button>
+        <button class="pg-tab" id="pgTabCss" onclick="switchPgTab('css')">CSS</button>
+        <button class="pg-tab" id="pgTabJs" onclick="switchPgTab('js')">JS</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <button onclick="pgRun()" class="btn btn-cyan btn-sm"><svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span class="pg-btn-text">Запустить</span></button>
+      <button onclick="pgOpenNewTab()" class="ibtn" title="Открыть в новой вкладке"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></button>
+      <button onclick="pgClear()" class="ibtn" title="Очистить"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+      <button onclick="pgInsertSnippet()" class="ibtn" title="Сниппет"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></button>
+      <button onclick="closePlayground()" class="ibtn" style="border-color:rgba(251,113,133,.3);color:var(--rose)"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+  </div>
+  <div id="pgMobileToggle" style="display:none;padding:6px 12px;border-bottom:1px solid var(--border);gap:4px" class="pg-tabs">
+    <button class="pg-tab active" id="pgModeEditor" onclick="pgSetMode('editor')" style="flex:1">✏ Редактор</button>
+    <button class="pg-tab" id="pgModePreview" onclick="pgSetMode('preview')" style="flex:1">👁 Превью</button>
+  </div>
+  <div class="pg-body" id="pgBody">
+    <div class="pg-editor-col" id="pgEditorCol">
+      <div class="pg-editor-header">
+        <span id="pgLangLabel" class="pg-lang-badge" style="background:rgba(251,191,36,.15);color:var(--amber)">HTML</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="pgAutoRunLabel" style="font-size:10px;color:var(--teal)">● авто</span>
+          <button onclick="pgToggleAutoRun()" id="pgAutoRunBtn" class="btn btn-ghost btn-xs">Выкл</button>
+        </div>
+      </div>
+      <div id="pgMonacoEditor" style="flex:1;overflow:hidden"></div>
+    </div>
+    <div class="pg-preview-col" id="pgPreviewCol">
+      <div class="pg-editor-header" style="background:rgba(20,20,30,.9)">
+        <span style="font-size:11px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700">ПРЕДПРОСМОТР</span>
+      </div>
+      <iframe id="pgPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" style="flex:1;border:none;background:#fff;width:100%"></iframe>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
