@@ -567,7 +567,7 @@ app.delete('/api/admin/history', requireAdmin, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 //  CHAT
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/chat', requireAuth, async (req, res) => {
+app.get('/api/chat', async (req, res) => {
   try {
     const rows = await q("SELECT * FROM chat_messages ORDER BY created_at ASC LIMIT 200");
     res.json(rows);

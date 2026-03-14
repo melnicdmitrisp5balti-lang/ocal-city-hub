@@ -966,14 +966,17 @@ async function verifyPanel(){
 }
 
 function switchPanelTab(t){
-  ['invites','users','history','settings','moderation'].forEach(x=>{
-    document.getElementById('tab'+cap(x)).classList.toggle('hidden',x!==t);
-    document.getElementById('pt'+cap(x)).classList.toggle('active',x===t);
+  ['invites','users','history','settings'].forEach(x=>{
+    const tabEl = document.getElementById('tab'+cap(x));
+    const btnEl = document.getElementById('pt'+cap(x));
+    if(tabEl) tabEl.classList.toggle('hidden',x!==t);
+    if(btnEl) btnEl.classList.toggle('active',x===t);
   });
   if(t==='invites') loadInvites();
   if(t==='users') loadUsers();
   if(t==='history') loadHistory();
-  if(t==='moderation') loadModerationSettings();
+  if(t==='settings') loadGuestsSetting();
+  if(t==='moderation') loadGuestsSetting();
   if(t==='settings') loadGuestsSetting();
 }
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
@@ -1144,9 +1147,10 @@ function updateHeaderBadge() {
   const prefixColor = prefixColorMap[currentUser.username];
   const prefixStyle = prefixStyleMap[currentUser.username] || 'solid';
   if (prefix) {
-    // Replace roleLabel element with rendered badge HTML
     const html = renderPfxBadge(prefix, prefixColor, prefixStyle);
-    rl.outerHTML = `<span id="roleLabel">${html}</span>`;
+    rl.innerHTML = html;
+    rl.style.cssText = '';
+    rl.className = '';
   } else {
     rl.innerHTML = '';
     rl.className = '';
