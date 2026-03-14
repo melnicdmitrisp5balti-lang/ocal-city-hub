@@ -242,7 +242,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .db-copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:1px 4px;border-radius:3px;font-size:10px;transition:.15s}
 .db-copy-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
 </head>
 <body>
 <div class="bg-scene"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
@@ -466,7 +466,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
           <div style="background:rgba(103,232,249,.04);border:1px solid rgba(103,232,249,.13);border-radius:13px;padding:24px;text-align:center">
             <div style="font-size:32px;margin-bottom:10px">🗄️</div>
             <div class="syne" style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">База данных</div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Введите пароль БД для доступа<br><span style="font-size:10px;color:var(--muted);opacity:.6"></span></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Введите пароль БД для доступа<br></div>
             <input id="dbPwInput" class="fi" type="password" placeholder="Пароль БД" style="margin-bottom:10px;text-align:center;letter-spacing:.1em" onkeydown="if(event.key==='Enter')verifyDbAccess()">
             <p id="dbAuthErr" class="hidden" style="color:var(--rose);font-size:12px;margin-bottom:10px"></p>
             <button onclick="verifyDbAccess()" class="btn btn-cyan btn-full">
@@ -1625,26 +1625,17 @@ function pgToggleAutoRun() {
 
 function pgBuildDoc() {
   if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-${pgCode.css}
-</style>
-</head>
-<body>
-${pgCode.html}
-<script>
-try {
-${pgCode.js}
-} catch(e) {
-  document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#ff3b3b;color:#fff;font-family:monospace;font-size:13px;z-index:9999">⚠ '+e.message+'</div>');
-}
-<\/script>
-</body>
-</html>`;
+  const openTag = '<scr'+'ipt>';
+  const closeTag = '</scr'+'ipt>';
+  return '<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<style>\n'
+    + pgCode.css
+    + '\n</style>\n</head>\n<body>\n'
+    + pgCode.html
+    + '\n' + openTag + '\ntry {\n'
+    + pgCode.js
+    + '\n} catch(e) {\n  document.body.insertAdjacentHTML(\'beforeend\',\'<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px;background:#dc2626;color:#fff;font-family:monospace;font-size:12px;z-index:9999">\u26a0 \'+e.message+\'</div>\');\n}\n'
+    + closeTag
+    + '\n</body>\n</html>';
 }
 
 function pgRun() {
@@ -1681,3 +1672,10 @@ function pgInsertSnippet() {
 }
 
 
+
+
+init();
+loadChatHistory();
+</script>
+</body>
+</html>

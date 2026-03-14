@@ -167,7 +167,6 @@ async function initDB() {
   if (!sp) await run("INSERT INTO settings (key,value) VALUES ('site_password',?)", [hashPw('admin123')]);
   const dp = await q1("SELECT value FROM settings WHERE key='db_password'");
   if (!dp) await run("INSERT INTO settings (key,value) VALUES ('db_password',?)", [hashPw('db1234')]);
-  console.log('Default DB password: db1234');
 
   const admin = await q1("SELECT id FROM users WHERE role='admin' LIMIT 1");
   if (!admin) {
