@@ -239,18 +239,25 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 .db-table-btn{font-size:10px!important;padding:4px 10px!important}
 .db-table-btn.active-db{border-color:rgba(103,232,249,.4)!important;color:var(--cyan)!important;background:rgba(103,232,249,.08)!important}
 #dbTable th{padding:8px 10px;text-align:left;font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);white-space:nowrap}
-#dbTable td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--soft);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top}
+#dbTable td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--soft);font-size:11px;max-width:220px;vertical-align:top;word-break:break-all}
 #dbTable tr:last-child td{border-bottom:none}
 #dbTable tr:hover td{background:rgba(103,232,249,.03)}
-#dbTable td.db-id{color:var(--muted);font-family:'Syne',sans-serif;font-size:10px}
-#dbTable td.db-role-admin{color:var(--amber);font-weight:700;font-family:'Syne',sans-serif}
-#dbTable td.db-role-editor{color:var(--violet);font-family:'Syne',sans-serif}
-#dbTable td.db-role-user{color:var(--cyan);font-family:'Syne',sans-serif}
-#dbTable td.db-hash{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);max-width:120px}
-#dbTable td.db-bool-yes{color:var(--green);font-weight:700}
-#dbTable td.db-bool-no{color:var(--muted)}
+#dbTable td.db-id{color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;white-space:nowrap}
+#dbTable td.db-role-admin{color:var(--amber);font-weight:700;font-family:'Syne',sans-serif;white-space:nowrap}
+#dbTable td.db-role-editor{color:var(--violet);font-family:'Syne',sans-serif;white-space:nowrap}
+#dbTable td.db-role-user{color:var(--cyan);font-family:'Syne',sans-serif;white-space:nowrap}
+#dbTable td.db-hash{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);word-break:break-all;max-width:200px;cursor:pointer}
+#dbTable td.db-hash:hover{color:var(--cyan)}
+#dbTable td.db-bool-yes{color:var(--green);font-weight:700;white-space:nowrap}
+#dbTable td.db-bool-no{color:var(--muted);white-space:nowrap}
+#dbTable td.db-clickable{cursor:pointer}
+#dbTable td.db-clickable:hover span.db-val{text-decoration:underline;text-decoration-color:rgba(103,232,249,.4);color:var(--text)}
 .db-copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:1px 4px;border-radius:3px;font-size:10px;transition:.15s}
 .db-copy-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
+/* DB cell detail modal */
+.db-cell-modal{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s}
+.db-cell-box{background:rgba(8,11,18,.99);border:1px solid var(--border2);border-radius:16px;padding:22px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8)}
+.db-cell-content{flex:1;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color:var(--text);word-break:break-all;white-space:pre-wrap;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:9px;padding:14px;margin:12px 0}
 </style>
 
 </head>
@@ -792,6 +799,23 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
       <button onclick="clearPfx()" class="btn btn-rose" style="flex:1;justify-content:center">Убрать</button>
       <button onclick="applyPfx()" class="btn btn-cyan" style="flex:1;justify-content:center">Сохранить</button>
     </div>
+  </div>
+</div>
+
+<!-- DB Cell Detail Modal -->
+<div id="dbCellModal" style="display:none" class="db-cell-modal" onclick="if(event.target===this)closeDbCell()">
+  <div class="db-cell-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div id="dbCellField" class="syne" style="font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:.07em;text-transform:uppercase;margin-bottom:2px"></div>
+        <div id="dbCellLen" style="font-size:10px;color:var(--muted)"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="dbCellCopy()" class="btn btn-ghost btn-sm">⧉ Копировать</button>
+        <button onclick="closeDbCell()" class="ibtn"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+    </div>
+    <div id="dbCellContent" class="db-cell-content"></div>
   </div>
 </div>
 
@@ -1986,15 +2010,60 @@ function dbRender(rows) {
   if (!rows.length) { head.innerHTML=''; body.innerHTML=''; empty.style.display=''; return; }
   empty.style.display = 'none';
   const cols = Object.keys(rows[0]);
-  head.innerHTML = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+  head.innerHTML = '<tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
   body.innerHTML = rows.map(row =>
     '<tr>' + cols.map(c => {
       const v = row[c];
-      const cls = c==='id'?'db-id':c==='role'?`db-role-${v}`:c.includes('hash')?'db-hash':c==='used'?(v?'db-bool-yes':'db-bool-no'):'';
-      const display = v===null?'<span style="color:var(--muted);font-style:italic">null</span>':esc(String(v));
-      return `<td class="${cls}" title="${esc(String(v??''))}">${display}<button class="db-copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(String(v??''))}).then(()=>showToast('Скопировано!'))" title="Копировать">⧉</button></td>`;
+      const strVal = v === null ? '' : String(v);
+      const isNull = v === null;
+      const isHash = c.includes('hash') || c.includes('password') || c.includes('token');
+      const isRole = c === 'role';
+      const isId   = c === 'id';
+      const isBool = c === 'used';
+      const isLong = strVal.length > 30;
+
+      let cls = '';
+      if (isId) cls = 'db-id';
+      else if (isRole) cls = `db-role-${v}`;
+      else if (isHash) cls = 'db-hash';
+      else if (isBool) cls = v ? 'db-bool-yes' : 'db-bool-no';
+      if (isLong || isHash) cls += ' db-clickable';
+
+      let display;
+      if (isNull) {
+        display = '<span style="color:var(--muted);font-style:italic;font-size:10px">null</span>';
+      } else if (isHash) {
+        // Show hash shortened with click to expand
+        const short = strVal.slice(0, 12) + '…';
+        display = `<span class="db-val" style="cursor:pointer" onclick="openDbCell(${JSON.stringify(c)},${JSON.stringify(strVal)})">${esc(short)}</span>`;
+      } else if (isLong) {
+        // Show up to 40 chars then click to expand
+        const short = strVal.slice(0, 40) + (strVal.length > 40 ? '…' : '');
+        display = `<span class="db-val" style="cursor:pointer;word-break:break-word" onclick="openDbCell(${JSON.stringify(c)},${JSON.stringify(strVal)})">${esc(short)}</span>`;
+      } else {
+        display = `<span class="db-val">${esc(strVal)}</span>`;
+      }
+
+      const copyBtn = isNull ? '' : `<button class="db-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText(${JSON.stringify(strVal)}).then(()=>showToast('Скопировано!'))" title="Копировать">⧉</button>`;
+      return `<td class="${cls}">${display}${copyBtn}</td>`;
     }).join('') + '</tr>'
   ).join('');
+}
+
+// ── DB Cell detail modal ──────────────────────────────────────────────────────
+let _dbCellValue = '';
+function openDbCell(field, value) {
+  _dbCellValue = value;
+  document.getElementById('dbCellField').textContent = field;
+  document.getElementById('dbCellLen').textContent = value.length + ' символов';
+  document.getElementById('dbCellContent').textContent = value;
+  document.getElementById('dbCellModal').style.display = 'flex';
+}
+function closeDbCell() {
+  document.getElementById('dbCellModal').style.display = 'none';
+}
+function dbCellCopy() {
+  navigator.clipboard.writeText(_dbCellValue).then(() => showToast('Скопировано ✦'));
 }
 
 async function changeDbPassword() {
