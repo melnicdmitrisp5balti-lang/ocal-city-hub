@@ -2007,12 +2007,25 @@ function dbRender(rows) {
   const head = document.getElementById('dbHead');
   const body = document.getElementById('dbBody');
   const empty = document.getElementById('dbEmpty');
-  if (!rows.length) { head.innerHTML=''; body.innerHTML=''; empty.style.display=''; return; }
+
+  if (!rows.length) {
+    head.innerHTML = '';
+    body.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
   empty.style.display = 'none';
+
   const cols = Object.keys(rows[0]);
+
+  // Build header
   head.innerHTML = '<tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
-  body.innerHTML = rows.map(row =>
-    '<tr>' + cols.map(c => {
+
+  // Build rows using DOM API to avoid HTML injection issues
+  body.innerHTML = '';
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    cols.forEach(c => {
       const v = row[c];
       const strVal = v === null ? '' : String(v);
       const isNull = v === null;
@@ -2020,34 +2033,54 @@ function dbRender(rows) {
       const isRole = c === 'role';
       const isId   = c === 'id';
       const isBool = c === 'used';
-      const isLong = strVal.length > 30;
+      const isLong = strVal.length > 25;
 
-      let cls = '';
-      if (isId) cls = 'db-id';
-      else if (isRole) cls = `db-role-${v}`;
-      else if (isHash) cls = 'db-hash';
-      else if (isBool) cls = v ? 'db-bool-yes' : 'db-bool-no';
-      if (isLong || isHash) cls += ' db-clickable';
+      const td = document.createElement('td');
+      if (isId) td.className = 'db-id';
+      else if (isRole) td.className = `db-role-${v}`;
+      else if (isHash) td.className = 'db-hash db-clickable';
+      else if (isBool) td.className = v ? 'db-bool-yes' : 'db-bool-no';
+      if ((isLong || isHash) && !isNull) td.classList.add('db-clickable');
 
-      let display;
       if (isNull) {
-        display = '<span style="color:var(--muted);font-style:italic;font-size:10px">null</span>';
-      } else if (isHash) {
-        // Show hash shortened with click to expand
-        const short = strVal.slice(0, 12) + '…';
-        display = `<span class="db-val" style="cursor:pointer" onclick="openDbCell(${JSON.stringify(c)},${JSON.stringify(strVal)})">${esc(short)}</span>`;
-      } else if (isLong) {
-        // Show up to 40 chars then click to expand
-        const short = strVal.slice(0, 40) + (strVal.length > 40 ? '…' : '');
-        display = `<span class="db-val" style="cursor:pointer;word-break:break-word" onclick="openDbCell(${JSON.stringify(c)},${JSON.stringify(strVal)})">${esc(short)}</span>`;
+        const s = document.createElement('span');
+        s.style.cssText = 'color:var(--muted);font-style:italic;font-size:10px';
+        s.textContent = 'null';
+        td.appendChild(s);
       } else {
-        display = `<span class="db-val">${esc(strVal)}</span>`;
+        const span = document.createElement('span');
+        span.className = 'db-val';
+
+        if (isHash) {
+          span.textContent = strVal.slice(0, 14) + '…';
+          span.style.cursor = 'pointer';
+          span.addEventListener('click', () => openDbCell(c, strVal));
+        } else if (isLong) {
+          span.textContent = strVal.slice(0, 35) + (strVal.length > 35 ? '…' : '');
+          span.style.cssText = 'cursor:pointer;word-break:break-word';
+          span.addEventListener('click', () => openDbCell(c, strVal));
+        } else {
+          span.textContent = strVal;
+          span.style.wordBreak = 'break-word';
+        }
+        td.appendChild(span);
+
+        // Copy button
+        const btn = document.createElement('button');
+        btn.className = 'db-copy-btn';
+        btn.title = 'Копировать';
+        btn.textContent = '⧉';
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(strVal).then(() => showToast('Скопировано ✦'));
+        });
+        td.appendChild(btn);
       }
 
-      const copyBtn = isNull ? '' : `<button class="db-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText(${JSON.stringify(strVal)}).then(()=>showToast('Скопировано!'))" title="Копировать">⧉</button>`;
-      return `<td class="${cls}">${display}${copyBtn}</td>`;
-    }).join('') + '</tr>'
-  ).join('');
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
 }
 
 // ── DB Cell detail modal ──────────────────────────────────────────────────────
