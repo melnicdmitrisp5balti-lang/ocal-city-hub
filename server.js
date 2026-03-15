@@ -845,6 +845,11 @@ app.get('/api/admin/db/invites', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Session check ────────────────────────────────────────────────────────────
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({ username: req.user.username, role: req.user.role });
+});
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 

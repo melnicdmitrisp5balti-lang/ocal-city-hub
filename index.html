@@ -900,14 +900,7 @@ try {
   });
   socket.on('force_logout', d => {
     if (currentUser && d.username === currentUser.username) {
-      // Аккаунт удалён администратором — принудительный выход
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      token = null;
-      currentUser = null;
-      // Показать уведомление и перезагрузить страницу
-      alert('Ваш аккаунт был удалён администратором.');
-      location.reload();
+      doForceLogout('Ваш аккаунт был удалён администратором.');
     }
   });
 } catch(e){}
@@ -941,6 +934,7 @@ function showApp() {
   document.getElementById('authModal').classList.add('hidden');
   document.getElementById('userBadge').classList.remove('hidden');
   document.getElementById('userLabel').textContent = currentUser.username;
+  startSessionHeartbeat();
 
   const roleNames = { admin:'Администратор', editor:'Редактор', user:'Участник', guest:'Гость' };
   const roleColors = { admin:'var(--amber)', editor:'var(--violet)', user:'var(--cyan)', guest:'var(--muted)' };
@@ -1000,6 +994,37 @@ async function doLogout() {
   try{await api('POST','/api/logout');}catch(e){}
   localStorage.removeItem('token'); localStorage.removeItem('user');
   location.reload();
+}
+
+function doForceLogout(msg) {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  token = null;
+  currentUser = null;
+  // Show overlay instead of alert so it works even in background tab
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(8,11,18,.97);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:Syne,sans-serif';
+  overlay.innerHTML = `
+    <div style="font-size:48px">🚫</div>
+    <div style="font-size:18px;font-weight:800;color:#e2e8f0">Аккаунт удалён</div>
+    <div style="font-size:14px;color:#64748b;text-align:center;max-width:300px">${msg || 'Ваш аккаунт был удалён администратором.'}</div>
+    <button onclick="location.reload()" style="margin-top:8px;padding:10px 24px;background:rgba(103,232,249,.12);border:1px solid rgba(103,232,249,.3);border-radius:10px;color:#67e8f9;font-family:Syne,sans-serif;font-size:13px;font-weight:700;cursor:pointer">Войти снова</button>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// Session heartbeat — check every 30s if session is still valid
+function startSessionHeartbeat() {
+  if (!token || !currentUser) return;
+  setInterval(async () => {
+    if (!token || !currentUser) return;
+    try {
+      const r = await fetch('/api/me', { headers: { 'x-token': token } });
+      if (r.status === 401 || r.status === 403) {
+        doForceLogout('Ваш аккаунт был удалён или сессия истекла.');
+      }
+    } catch(e) { /* network error, ignore */ }
+  }, 30000);
 }
 
 function saveSession(d) {
