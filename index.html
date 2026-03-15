@@ -430,10 +430,20 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
 
       <!-- INVITES -->
       <div id="tabInvites">
-        <button onclick="genInvite()" class="btn btn-cyan btn-full" style="margin-bottom:14px">
+        <button onclick="genInvite()" class="btn btn-cyan btn-full" style="margin-bottom:10px">
           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Создать код приглашения
         </button>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button onclick="clearUsedInvites()" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            Удалить использованные
+          </button>
+          <button onclick="clearAllInvites()" class="btn btn-rose btn-sm" style="flex:1;justify-content:center">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            Удалить все
+          </button>
+        </div>
         <div id="invitesList" style="display:flex;flex-direction:column;gap:7px"></div>
       </div>
 
@@ -1336,16 +1346,91 @@ async function genInvite(){
 }
 async function loadInvites(){
   try{
-    const codes=await api('GET','/api/admin/invites');
-    document.getElementById('invitesList').innerHTML=codes.length?codes.map(c=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid ${c.used?'var(--border)':'rgba(103,232,249,.15)'};border-radius:9px">
-        <div>
-          <span class="syne" style="font-size:14px;font-weight:700;letter-spacing:.1em;color:${c.used?'var(--muted)':'var(--cyan)'}">${c.code}</span>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">${c.used?'Использован: '+c.used_by:'Активен · '+c.created_at}</div>
-        </div>
-        ${!c.used?`<button onclick='navigator.clipboard.writeText("${c.code}").then(()=>showToast("Скопировано!"))' class="btn btn-ghost btn-sm">⧉</button>`:''}
-      </div>`).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Кодов нет</div>';
-  }catch(e){}
+    const codes = await api('GET','/api/admin/invites');
+    const list = document.getElementById('invitesList');
+    if (!codes.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Кодов нет</div>';
+      return;
+    }
+    list.innerHTML = '';
+    codes.forEach(c => {
+      const div = document.createElement('div');
+      div.id = 'invite-' + c.id;
+      div.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid ${c.used ? 'var(--border)' : 'rgba(103,232,249,.15)'};border-radius:9px;gap:8px`;
+
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.style.minWidth = '0';
+
+      const code = document.createElement('span');
+      code.className = 'syne';
+      code.style.cssText = `font-size:14px;font-weight:700;letter-spacing:.1em;color:${c.used ? 'var(--muted)' : 'var(--cyan)'};display:block`;
+      code.textContent = c.code;
+
+      const meta = document.createElement('div');
+      meta.style.cssText = 'font-size:11px;color:var(--muted);margin-top:1px';
+      meta.textContent = c.used ? ('Использован: ' + (c.used_by || '')) : ('Активен · ' + c.created_at);
+
+      info.appendChild(code);
+      info.appendChild(meta);
+      div.appendChild(info);
+
+      const btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;gap:6px;flex-shrink:0';
+
+      if (!c.used) {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-ghost btn-xs';
+        copyBtn.title = 'Копировать';
+        copyBtn.textContent = '⧉';
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(c.code).then(() => showToast('Скопировано: ' + c.code));
+        });
+        btns.appendChild(copyBtn);
+      }
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-rose btn-xs';
+      delBtn.title = 'Удалить';
+      delBtn.innerHTML = '<svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+      delBtn.addEventListener('click', () => deleteInvite(c.id));
+      btns.appendChild(delBtn);
+
+      div.appendChild(btns);
+      list.appendChild(div);
+    });
+  } catch(e) {}
+}
+
+async function deleteInvite(id) {
+  try {
+    await api('DELETE', '/api/admin/invites/' + id);
+    document.getElementById('invite-' + id)?.remove();
+    showToast('Код удалён ✦');
+    // Check if list is empty
+    const list = document.getElementById('invitesList');
+    if (list && !list.children.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Кодов нет</div>';
+    }
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function clearUsedInvites() {
+  if (!confirm('Удалить все использованные коды?')) return;
+  try {
+    await api('DELETE', '/api/admin/invites/used');
+    showToast('Использованные коды удалены ✦');
+    loadInvites();
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function clearAllInvites() {
+  if (!confirm('Удалить ВСЕ коды приглашений? Активные тоже будут удалены.')) return;
+  try {
+    await api('DELETE', '/api/admin/invites');
+    showToast('Все коды удалены ✦');
+    loadInvites();
+  } catch(e) { showToast(e.message, true); }
 }
 
 const ROLE_CFG = {

@@ -279,18 +279,14 @@ app.post('/api/upload', requireAuth, async (req, res) => {
     if (sizeBytes > 10 * 1024 * 1024) return res.status(400).json({ error: 'Файл слишком большой (макс 10MB)' });
 
     const isImage = type?.startsWith('image/');
-    const isAudio = type?.startsWith('audio/');
-    const resourceType = isImage ? 'image' : isAudio ? 'video' : 'raw';
-
-    // Cloudinary не принимает параметры кодека в mime-type (audio/webm;codecs=opus -> audio/webm)
-    const cleanType = (type || '').split(';')[0].trim();
+    const resourceType = isImage ? 'image' : 'raw';
 
     const result = await uploadToCloudinary(
-      `data:${cleanType};base64,${data}`,
+      `data:${type};base64,${data}`,
       resourceType
     );
 
-    res.json({ url: result.secure_url, type: isImage ? 'image' : isAudio ? 'audio' : 'file', original_type: type });
+    res.json({ url: result.secure_url, type: isImage ? 'image' : 'file', original_type: type });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -420,6 +416,33 @@ app.post('/api/admin/invite', requireAdmin, async (req, res) => {
 app.get('/api/admin/invites', requireAdmin, async (req, res) => {
   try { res.json(await q("SELECT * FROM invite_codes ORDER BY created_at DESC LIMIT 100")); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete single invite
+app.delete('/api/admin/invites/:id', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM invite_codes WHERE id=?", [req.params.id]);
+    await addHistory(req.user.username, 'delete_invite', null, null);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Clear all used invites
+app.delete('/api/admin/invites/used', requireAdmin, async (req, res) => {
+  try {
+    const r = await run("DELETE FROM invite_codes WHERE used=1");
+    await addHistory(req.user.username, 'clear_used_invites', null, null);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Clear ALL invites
+app.delete('/api/admin/invites', requireAdmin, async (req, res) => {
+  try {
+    await run("DELETE FROM invite_codes");
+    await addHistory(req.user.username, 'clear_all_invites', null, null);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
