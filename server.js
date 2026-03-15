@@ -458,6 +458,8 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     await run("DELETE FROM users WHERE id=?", [req.params.id]);
     await run("DELETE FROM sessions WHERE username=?", [u.username]);
     await addHistory(req.user.username, 'delete_user', u.username, null);
+    // Force logout the deleted user on all their connected clients
+    io.emit('force_logout', { username: u.username });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

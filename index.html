@@ -898,6 +898,18 @@ try {
       location.reload();
     }
   });
+  socket.on('force_logout', d => {
+    if (currentUser && d.username === currentUser.username) {
+      // Аккаунт удалён администратором — принудительный выход
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      token = null;
+      currentUser = null;
+      // Показать уведомление и перезагрузить страницу
+      alert('Ваш аккаунт был удалён администратором.');
+      location.reload();
+    }
+  });
 } catch(e){}
 
 // ── API ───────────────────────────────────────────────────────────────────────
