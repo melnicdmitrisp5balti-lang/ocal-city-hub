@@ -845,6 +845,81 @@ app.get('/api/admin/db/invites', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── AI Chat (с контекстом кода) ───────────────────────────────────────────────
+app.post('/api/ai-chat', requireAuth, async (req, res) => {
+  try {
+    const CF_TOKEN = process.env.CF_API_TOKEN;
+    const CF_ACCOUNT = process.env.CF_ACCOUNT_ID;
+    if (!CF_TOKEN || !CF_ACCOUNT) {
+      return res.status(503).json({ error: 'AI не настроен.' });
+    }
+
+    const { messages, hasCode } = req.body;
+    if (!messages?.length) return res.status(400).json({ error: 'Нет сообщений' });
+
+    // System prompt depends on whether there's code context
+    const systemPrompt = hasCode
+      ? 'You are an expert web developer assistant. The user will share their current HTML/CSS/JS code. ' +
+        'If they ask to create, modify, fix, or improve code — respond ONLY with a JSON object: {"html":"...","css":"...","js":"..."}. ' +
+        'If they ask a question or want an explanation — respond in plain text (Russian). ' +
+        'For code responses: include ALL code (not just changes), keep existing functionality, improve design. ' +
+        'NEVER use markdown code blocks in JSON values. Escape newlines as \n.'
+      : 'You are an expert web developer. When asked to create something — respond ONLY with JSON: {"html":"...","css":"...","js":"..."}. ' +
+        'For questions — answer in plain text (Russian). No markdown blocks in JSON values. Escape newlines as \n.';
+
+    // Build messages for Cloudflare (no system role support, prepend to first message)
+    const cfMessages = messages.map((m, i) => ({
+      role: m.role,
+      content: i === 0 ? systemPrompt + '\n\n' + m.content : m.content
+    }));
+
+    const body = JSON.stringify({
+      messages: cfMessages,
+      max_tokens: 4096,
+      stream: false
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
+      const options = {
+        hostname: 'api.cloudflare.com',
+        path,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CF_TOKEN}`,
+          'Content-Length': Buffer.byteLength(body)
+        }
+      };
+      const req2 = https.request(options, r => {
+        let data = '';
+        r.on('data', chunk => data += chunk);
+        r.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch(e) { reject(new Error('Ошибка парсинга')); }
+        });
+      });
+      req2.on('error', reject);
+      req2.write(body);
+      req2.end();
+    });
+
+    if (!result.success) {
+      return res.status(502).json({ error: result.errors?.[0]?.message || 'Ошибка AI' });
+    }
+
+    let text = result.result?.response || '';
+    text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+
+    // Detect if response is JSON (code) or plain text
+    const looksLikeCode = text.trim().startsWith('{') || text.includes('"html"') || text.includes('"css"');
+
+    res.json({ text, hasCode: looksLikeCode });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Session check ────────────────────────────────────────────────────────────
 app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
