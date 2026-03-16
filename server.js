@@ -39,25 +39,57 @@ function cleanAiJson(text) {
     const e = text.lastIndexOf('}');
     if (s === -1 || e <= s) return text;
     let slice = text.slice(s, e + 1);
-    // Replace literal newlines/carriage returns with escaped versions
-    // We do this character by character inside string context
+
+    // Process character by character to fix invalid JSON escapes
     let result = '';
     let inString = false;
-    let escape = false;
-    for (let i = 0; i < slice.length; i++) {
+    let i = 0;
+    while (i < slice.length) {
       const ch = slice[i];
-      if (escape) { result += ch; escape = false; continue; }
-      if (ch === '\\') { result += ch; escape = true; continue; }
-      if (ch === '"') { inString = !inString; result += ch; continue; }
-      if (inString && ch === '\n') { result += '\\n'; continue; }
-      if (inString && ch === '\r') { continue; }
-      if (inString && ch === '\t') { result += '\\t'; continue; }
-      result += ch;
+
+      if (ch === '"' && !inString) { inString = true; result += ch; i++; continue; }
+
+      if (inString) {
+        if (ch === '\\') {
+          const next = slice[i + 1];
+          if (next === 'n')  { result += '\\n';  i += 2; continue; }
+          if (next === 't')  { result += '\\t';  i += 2; continue; }
+          if (next === 'r')  { result += '\\r';  i += 2; continue; }
+          if (next === '"')  { result += '\\"';  i += 2; continue; }
+          if (next === '\\') { result += '\\\\'; i += 2; continue; }
+          if (next === '/') { result += '\\/';  i += 2; continue; }
+          if (next === 'u') { result += slice.slice(i, i + 6); i += 6; continue; }
+          // Invalid escape (like \') — just output the char after backslash
+          result += next; i += 2; continue;
+        }
+        if (ch === '"') { inString = false; result += ch; i++; continue; }
+        // Literal newlines inside string — escape them
+        if (ch === '\n') { result += '\\n'; i++; continue; }
+        if (ch === '\r') { i++; continue; }
+        if (ch === '\t') { result += '\\t'; i++; continue; }
+        result += ch; i++; continue;
+      }
+
+      result += ch; i++;
     }
+
     const parsed = JSON.parse(result);
     return JSON.stringify(parsed);
   } catch(e2) {
-    return text;
+    // Last resort: remove invalid escapes and try again
+    try {
+      const s = text.indexOf('{'), e = text.lastIndexOf('}');
+      if (s === -1 || e <= s) return text;
+      let slice = text.slice(s, e + 1);
+      // Replace \' with ' (invalid JSON escape)
+      slice = slice.replace(/\\'/g, "'");
+      // Replace literal newlines in strings
+      slice = slice.replace(/"([^"]*)"/g, (m, p1) => '"' + p1.replace(/\n/g, '\\n').replace(/\t/g, '\\t') + '"');
+      const parsed = JSON.parse(slice);
+      return JSON.stringify(parsed);
+    } catch(e3) {
+      return text;
+    }
   }
 }
 

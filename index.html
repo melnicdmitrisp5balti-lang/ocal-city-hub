@@ -2680,15 +2680,10 @@ function animateVoiceWave(vid) {
 //  AI ASSISTANT (Playground)
 // ══════════════════════════════════════════════════════════════════════════════
 function pgAiInsertCode(parsed) {
-  const unescape = s => String(s || '')
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\"/g, '"')
-    .replace(/\\r/g, '');
-
-  if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
-  if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
-  if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
+  // Values from JSON.parse already have correct characters - no unescaping needed
+  if (parsed.html !== undefined) pgCode.html = String(parsed.html || '');
+  if (parsed.css  !== undefined) pgCode.css  = String(parsed.css  || '');
+  if (parsed.js   !== undefined) pgCode.js   = String(parsed.js   || '');
 
   // Switch to html tab and update editor
   pgCurrentTab = 'html';
@@ -2826,47 +2821,49 @@ async function pgAiSend() {
     if (!response.ok) throw new Error(data.error || 'Ошибка сервера');
 
     const text = String(data.text || '');
-    aiChatHistory.push({ role: 'assistant', content: text });
 
-    // Always try to parse JSON first, fall back to plain text
-    let codeInserted = false;
-    const tryParseCode = (raw) => {
-      try {
-        let clean = String(raw)
-          .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
-          .replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-        const start2 = clean.indexOf('{'), end2 = clean.lastIndexOf('}');
-        if (start2 === -1 || end2 <= start2) return null;
-        clean = clean.slice(start2, end2 + 1);
-        // Fix literal newlines inside JSON string values char by char
+    // Try to parse as code JSON first
+    let parsed = null;
+    try {
+      let clean = text.replace(/```json|```/g, '').trim();
+      const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}');
+      if (s !== -1 && e2 > s) {
+        clean = clean.slice(s, e2 + 1);
+        // Fix invalid escapes (e.g. \' is invalid in JSON)
         let fixed = '';
-        let inStr = false, esc = false;
-        for (let i = 0; i < clean.length; i++) {
+        let inStr = false, i = 0;
+        while (i < clean.length) {
           const c = clean[i];
-          if (esc) { fixed += c; esc = false; continue; }
-          if (c === '\\') { fixed += c; esc = true; continue; }
-          if (c === '"') { inStr = !inStr; fixed += c; continue; }
-          if (inStr && c === '\n') { fixed += '\\n'; continue; }
-          if (inStr && c === '\r') { continue; }
-          if (inStr && c === '\t') { fixed += '\\t'; continue; }
-          fixed += c;
+          if (c === '"' && !inStr) { inStr = true; fixed += c; i++; continue; }
+          if (inStr) {
+            if (c === '\\') {
+              const n = clean[i+1];
+              const valid = 'ntrb\\/"\'f'.includes(n) || n === 'u';
+              if (valid && n !== "'") { fixed += c + n; i += 2; continue; }
+              // Invalid escape - just output the char
+              fixed += n; i += 2; continue;
+            }
+            if (c === '"') { inStr = false; fixed += c; i++; continue; }
+            if (c === '\n') { fixed += '\\n'; i++; continue; }
+            if (c === '\r') { i++; continue; }
+            if (c === '\t') { fixed += '\\t'; i++; continue; }
+            fixed += c; i++; continue;
+          }
+          fixed += c; i++;
         }
-        // Try direct parse first, then fixed
-        let p;
-        try { p = JSON.parse(clean); } catch(e1) { p = JSON.parse(fixed); }
-        if (p.html !== undefined || p.css !== undefined || p.js !== undefined) return p;
-        return null;
-      } catch(e) { return null; }
-    };
+        parsed = JSON.parse(fixed);
+        if (parsed.html === undefined && parsed.css === undefined && parsed.js === undefined) {
+          parsed = null;
+        }
+      }
+    } catch(e) { parsed = null; }
 
-    const parsed = tryParseCode(text);
     if (parsed) {
       pgAiInsertCode(parsed);
-      codeInserted = true;
+      aiChatHistory.push({ role: 'assistant', content: '✦ Код обновлён' });
       pgAiAddMessage('assistant', '', true);
-    }
-
-    if (!codeInserted) {
+    } else {
+      aiChatHistory.push({ role: 'assistant', content: text });
       pgAiAddMessage('assistant', text, false);
     }
 
@@ -2890,291 +2887,30 @@ if (typeof socket !== 'undefined' && socket) {
 // ══════════════════════════════════════════════════════════════════════════════
 //  VOICE RECORDING
 // ══════════════════════════════════════════════════════════════════════════════
-async function toggleVoiceRecord() {
-  if (isRecording) {
-    stopVoiceRecord();
-  } else {
-    await startVoiceRecord();
-  }
-}
 
-async function startVoiceRecord() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    recChunks = [];
-    recSeconds = 0;
 
-    const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? { mimeType: 'audio/webm;codecs=opus' }
-      : MediaRecorder.isTypeSupported('audio/webm')
-      ? { mimeType: 'audio/webm' }
-      : {};
 
-    mediaRecorder = new MediaRecorder(stream, options);
-    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      stream.getTracks().forEach(t => t.stop());
-      // Small delay to ensure all ondataavailable callbacks have fired
-      setTimeout(() => sendVoiceMessage(), 100);
-    };
-    mediaRecorder.start(100);
-    isRecording = true;
 
-    const micBtn = document.getElementById('chatMicBtn');
-    if (micBtn) micBtn.classList.add('recording');
-    const inp = document.getElementById('chatInput');
-    if (inp) { inp.placeholder = '● Запись...'; inp.disabled = true; }
 
-    const timer = document.getElementById('chatRecTimer');
-    if (timer) timer.classList.remove('hidden');
 
-    recTimerInterval = setInterval(() => {
-      recSeconds++;
-      if (timer) timer.textContent = '● ' + formatRecTime(recSeconds);
-      if (recSeconds >= 120) stopVoiceRecord(); // max 2 min
-    }, 1000);
 
-  } catch(e) {
-    showToast('Нет доступа к микрофону', true);
-  }
-}
 
-function stopVoiceRecord() {
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-  // Request any buffered data before stopping
-  if (mediaRecorder.state === 'recording') {
-    mediaRecorder.requestData();
-  }
-  mediaRecorder.stop();
-  isRecording = false;
-  clearInterval(recTimerInterval);
 
-  const micBtn = document.getElementById('chatMicBtn');
-  if (micBtn) micBtn.classList.remove('recording');
-  const inp = document.getElementById('chatInput');
-  if (inp) { inp.placeholder = 'Сообщение...'; inp.disabled = false; }
-  const timer = document.getElementById('chatRecTimer');
-  if (timer) { timer.classList.add('hidden'); timer.textContent = ''; }
-}
-
-function formatRecTime(s) {
-  const m = Math.floor(s/60);
-  return m + ':' + String(s%60).padStart(2,'0');
-}
-
-async function sendVoiceMessage() {
-  if (!recChunks.length) return;
-  const rawMime = recChunks[0].type || 'audio/webm';
-  // Strip codec params — Cloudinary only accepts clean mime type
-  const mimeType = rawMime.split(';')[0].trim();
-  const blob = new Blob(recChunks, { type: mimeType });
-  const duration = recSeconds;
-  recChunks = []; // clear after saving blob
-
-  if (blob.size < 500) { showToast('Запись слишком короткая', true); return; }
-
-  showToast('Отправляю голосовое...');
-  try {
-    // Convert blob to base64 using Promise (not callback)
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-    const result = await uploadFile(base64, mimeType);
-    const msgData = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2,5),
-      text: '',
-      voice_url: result.url,
-      voice_duration: duration,
-    };
-    await api('POST', '/api/chat', msgData);
-    showToast('Голосовое отправлено ✦');
-  } catch(e) {
-    showToast('Ошибка отправки: ' + e.message, true);
-  }
-}
 
 // Voice playback
-function playVoiceMsg(vid, url, btn) {
-  // Stop current if playing different
-  if (currentVoiceAudio && currentVoiceId !== vid) {
-    currentVoiceAudio.pause();
-    currentVoiceAudio = null;
-    // reset previous button
-    const prevBtn = document.getElementById(currentVoiceId + '-btn');
-    if (prevBtn) prevBtn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-    const prevWave = document.getElementById(currentVoiceId + '-wave');
-    if (prevWave) prevWave.querySelectorAll('span').forEach(s => s.classList.remove('active'));
-    currentVoiceId = null;
-  }
 
-  if (currentVoiceAudio && currentVoiceId === vid) {
-    // Toggle pause/play
-    if (currentVoiceAudio.paused) {
-      currentVoiceAudio.play();
-      btn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-      animateVoiceWave(vid);
-    } else {
-      currentVoiceAudio.pause();
-      btn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-    }
-    return;
-  }
 
-  // Create new audio
-  const audio = new Audio(url);
-  currentVoiceAudio = audio;
-  currentVoiceId = vid;
 
-  btn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-
-  audio.play().catch(e => showToast('Ошибка воспроизведения', true));
-  animateVoiceWave(vid);
-
-  // Update timer
-  const durEl = document.getElementById(vid + '-dur');
-  audio.ontimeupdate = () => {
-    if (!durEl) return;
-    const rem = Math.max(0, Math.floor(audio.duration - audio.currentTime));
-    durEl.textContent = '0:' + String(rem).padStart(2,'0');
-  };
-
-  audio.onended = () => {
-    btn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-    const wave = document.getElementById(vid + '-wave');
-    if (wave) wave.querySelectorAll('span').forEach(s => s.classList.remove('active'));
-    currentVoiceAudio = null;
-    currentVoiceId = null;
-    // Reset duration display
-    if (durEl) durEl.textContent = '0:00';
-  };
-}
-
-function animateVoiceWave(vid) {
-  const wave = document.getElementById(vid + '-wave');
-  if (!wave) return;
-  const spans = wave.querySelectorAll('span');
-  let i = 0;
-  const interval = setInterval(() => {
-    if (!currentVoiceAudio || currentVoiceAudio.paused || currentVoiceId !== vid) {
-      spans.forEach(s => s.classList.remove('active'));
-      clearInterval(interval);
-      return;
-    }
-    spans.forEach((s, idx) => s.classList.toggle('active', idx === i % spans.length));
-    i++;
-  }, 120);
-}
 
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  AI ASSISTANT (Playground)
 // ══════════════════════════════════════════════════════════════════════════════
-function openAiPanel() {
-  const panel = document.getElementById('pgAiPanel');
-  if (!panel) return;
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) {
-    setTimeout(() => document.getElementById('pgAiInput')?.focus(), 100);
-    if (monacoEditor) setTimeout(() => monacoEditor.layout(), 50);
-  }
-}
 
-function closeAiPanel() {
-  const panel = document.getElementById('pgAiPanel');
-  if (panel) panel.style.display = 'none';
-  if (monacoEditor) setTimeout(() => monacoEditor.layout(), 50);
-}
 
-async function pgAiGenerate() {
-  const input = document.getElementById('pgAiInput');
-  const btn = document.getElementById('pgAiBtn');
-  const status = document.getElementById('pgAiStatus');
-  const prompt = input?.value.trim();
-  if (!prompt) { status.textContent = '⚠ Введите задание'; status.style.color = 'var(--rose)'; return; }
 
-  btn.disabled = true;
-  btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Генерирую...';
-  status.style.color = 'var(--muted)';
-  status.textContent = '🤖 ИИ думает...';
 
-  try {
-    const systemPrompt = `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
-Твоя задача: сгенерировать код и вернуть его СТРОГО в JSON формате без markdown, без пояснений, только JSON:
-{"html": "...HTML код...", "css": "...CSS код...", "js": "...JavaScript код..."}
 
-Правила:
-- HTML: только содержимое тега <body> (без <!DOCTYPE>, <html>, <head>, <body>)
-- CSS: чистый CSS без <style> тегов
-- JS: чистый JavaScript без <script> тегов
-- Код должен быть полным, рабочим и красивым
-- Используй современный дизайн: тёмная тема, градиенты, анимации
-- Пиши комментарии на русском
-- Если просят игру — сделай полноценную игру
-- Если просят калькулятор — сделай красивый функциональный калькулятор
-- ТОЛЬКО JSON, никакого текста до или после`;
-
-    const response = await fetch('/api/ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-token': token || '' },
-      body: JSON.stringify({ prompt })
-    });
-
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Ошибка сервера');
-
-    const text = String(data.text || '');
-
-    // Parse JSON response
-    const unescape = s => String(s || '')
-      .replace(/\\n/g, '\n').replace(/\\t/g, '\t')
-      .replace(/\\"/g, '"').replace(/\\r/g, '');
-
-    let parsed = null;
-    try {
-      let clean = text
-        .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
-        .replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}');
-      if (s !== -1 && e2 > s) clean = clean.slice(s, e2 + 1);
-      parsed = JSON.parse(clean);
-    } catch(e) {
-      throw new Error('ИИ вернул некорректный формат. Попробуй ещё раз.');
-    }
-
-    if (!parsed || (parsed.html === undefined && parsed.css === undefined && parsed.js === undefined)) {
-      throw new Error('ИИ не вернул код. Попробуй переформулировать.');
-    }
-
-    // Insert into editor tabs
-    pgAiInsertCode(parsed);
-
-    // Update current editor view
-    if (monacoEditor && monacoReady) {
-      const lang = pgLangMap[pgCurrentTab];
-      const model = monaco.editor.createModel(pgCode[pgCurrentTab], lang);
-      monacoEditor.setModel(model);
-    }
-
-    // Run preview
-    pgRun();
-
-    status.style.color = 'var(--teal)';
-    status.textContent = '✦ Готово! Код вставлен во все вкладки. Проверь превью →';
-    input.value = '';
-
-  } catch(e) {
-    status.style.color = 'var(--rose)';
-    status.textContent = '✕ Ошибка: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Создать';
-  }
-}
 
 
 init();
