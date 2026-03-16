@@ -758,7 +758,7 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
       <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#a78bfa,#67e8f9);display:flex;align-items:center;justify-content:center;flex-shrink:0">
         <svg width="11" height="11" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
       </div>
-      <span class="syne" style="font-size:12px;font-weight:800;color:#c4b5fd">AI Ассистент</span>
+      <span class="syne" style="font-size:12px;font-weight:800;color:#c4b5fd">Starosta AI</span>
       <span style="font-size:10px;color:var(--muted)">· видит твой код · Enter для отправки</span>
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button onclick="pgAiClearChat()" title="Очистить чат" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;font-family:'Syne',sans-serif" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">очистить</button>
@@ -2679,6 +2679,41 @@ function animateVoiceWave(vid) {
 // ══════════════════════════════════════════════════════════════════════════════
 //  AI ASSISTANT (Playground)
 // ══════════════════════════════════════════════════════════════════════════════
+function pgAiInsertCode(parsed) {
+  const unescape = s => String(s || '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\r/g, '');
+
+  if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
+  if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
+  if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
+
+  // Switch to html tab and update editor
+  pgCurrentTab = 'html';
+  ['html','css','js'].forEach(t => {
+    document.getElementById('pgTab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle('active', t === 'html');
+  });
+  const lc = pgLangColors['html'];
+  const badge = document.getElementById('pgLangLabel');
+  if (badge) { badge.textContent = lc.label; badge.style.background = lc.bg; badge.style.color = lc.color; }
+
+  if (monacoEditor && monacoReady) {
+    // Dispose old model and create new one
+    const oldModel = monacoEditor.getModel();
+    monacoEditor.setValue(pgCode.html);
+    if (oldModel) {
+      const newModel = monaco.editor.createModel(pgCode.html, 'html');
+      monacoEditor.setModel(newModel);
+      try { oldModel.dispose(); } catch(e) {}
+    }
+    monacoEditor.layout();
+  }
+  // Run preview
+  setTimeout(() => pgRun(), 100);
+}
+
 function openAiPanel() {
   const panel = document.getElementById('pgAiPanel');
   if (!panel) return;
@@ -2826,19 +2861,7 @@ async function pgAiSend() {
 
     const parsed = tryParseCode(text);
     if (parsed) {
-      const unescape = s => String(s || '')
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\r/g, '');
-      if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
-      if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
-      if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
-      if (monacoEditor && monacoReady) {
-        const model = monaco.editor.createModel(pgCode[pgCurrentTab], pgLangMap[pgCurrentTab]);
-        monacoEditor.setModel(model);
-      }
-      pgRun();
+      pgAiInsertCode(parsed);
       codeInserted = true;
       pgAiAddMessage('assistant', '', true);
     }
@@ -3128,9 +3151,7 @@ async function pgAiGenerate() {
     }
 
     // Insert into editor tabs
-    pgCode.html = unescape(parsed.html || '');
-    pgCode.css  = unescape(parsed.css  || '');
-    pgCode.js   = unescape(parsed.js   || '');
+    pgAiInsertCode(parsed);
 
     // Update current editor view
     if (monacoEditor && monacoReady) {
