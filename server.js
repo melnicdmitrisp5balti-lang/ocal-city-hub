@@ -895,7 +895,15 @@ app.post('/api/ai', requireAuth, async (req, res) => {
     const body = JSON.stringify({ messages: [{ role:'system', content: sys }, { role:'user', content: prompt.trim() }], max_tokens: 4096, stream: false });
     const result = await cfAiRequest(CF_ACCOUNT, CF_TOKEN, body);
     if (!result.success) return res.status(502).json({ error: result.errors?.[0]?.message || 'CF error' });
-    const text = parseAiJson(String(result.result?.response || '')) || String(result.result?.response || '');
+    let raw2 = '';
+    if (typeof result.result?.response === 'string') {
+      raw2 = result.result.response;
+    } else if (typeof result.result?.response === 'object' && result.result?.response !== null) {
+      raw2 = result.result.response.generated_text || result.result.response.text || JSON.stringify(result.result.response);
+    } else {
+      raw2 = JSON.stringify(result.result || '');
+    }
+    const text = parseAiJson(raw2.trim()) || raw2.trim();
     res.json({ text });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -917,9 +925,24 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
     const body = JSON.stringify({ messages: cfMsgs, max_tokens: 4096, stream: false });
     const result = await cfAiRequest(CF_ACCOUNT, CF_TOKEN, body);
     if (!result.success) return res.status(502).json({ error: result.errors?.[0]?.message || 'CF error' });
-    const raw = String(result.result?.response || '');
+    // Cloudflare может вернуть ответ в разных форматах
+    let raw = '';
+    if (typeof result.result?.response === 'string') {
+      raw = result.result.response;
+    } else if (typeof result.result?.response === 'object' && result.result?.response !== null) {
+      // Иногда возвращает {generated_text: "..."} или другую структуру
+      raw = result.result.response.generated_text
+         || result.result.response.text
+         || result.result.response.content
+         || JSON.stringify(result.result.response);
+    } else if (typeof result.result === 'string') {
+      raw = result.result;
+    } else {
+      raw = JSON.stringify(result.result || '');
+    }
+    raw = raw.trim();
+    console.log('[AI-chat] raw type:', typeof result.result?.response, '| raw start:', raw.slice(0, 100));
     const jsonText = parseAiJson(raw);
-    console.log('[AI-chat] hasCode:', !!jsonText, '| preview:', (jsonText || raw).slice(0, 80));
     res.json({ text: jsonText || raw, hasCode: !!jsonText });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
