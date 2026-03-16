@@ -2864,11 +2864,14 @@ async function pgAiSend() {
       headers: { 'Content-Type': 'application/json', 'x-token': token || '' },
       body: JSON.stringify({ messages: aiChatHistory, hasCode })
     });
-    const data = await resp.json();
+    let data;
+    try { data = await resp.json(); } catch(e) { throw new Error('Ошибка ответа сервера'); }
     document.getElementById('aiTyping')?.remove();
-    if (!resp.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!resp.ok) throw new Error((data && data.error) || 'Ошибка сервера');
 
-    const text = String(data.text || '');
+    const text = String((data && data.text) ? data.text : '');
+    if (!text) throw new Error('Пустой ответ от AI');
+
     const parsed = pgAiParseResponse(text);
 
     if (parsed) {
@@ -2876,7 +2879,8 @@ async function pgAiSend() {
       aiChatHistory.push({ role: 'assistant', content: '(code updated)' });
       pgAiAddMessage('assistant', '', true);
     } else {
-      aiChatHistory.push({ role: 'assistant', content: text });
+      // Don't store huge responses in history, just a summary
+      aiChatHistory.push({ role: 'assistant', content: text.slice(0, 500) });
       pgAiAddMessage('assistant', text, false);
     }
   } catch(e) {

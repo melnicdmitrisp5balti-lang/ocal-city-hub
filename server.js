@@ -909,7 +909,11 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
     const sys = hasCode
       ? 'You are an expert web developer. User shares HTML/CSS/JS code. For code tasks respond ONLY with JSON {"html":"...","css":"...","js":"..."}. For questions answer in Russian. No markdown. In JSON escape quotes as \\" and newlines as \\n.'
       : 'You are an expert web developer. For code creation respond ONLY with JSON {"html":"...","css":"...","js":"..."}. For questions answer in Russian. No markdown.';
-    const cfMsgs = messages.map((m, i) => ({ role: m.role, content: i === 0 ? sys + '\n\n' + m.content : m.content }));
+    // Sanitize messages - ensure content is always string, trim large contexts
+    const cfMsgs = messages.map((m, i) => ({
+      role: m.role,
+      content: String(i === 0 ? sys + '\n\n' + m.content : m.content).slice(0, 8000)
+    }));
     const body = JSON.stringify({ messages: cfMsgs, max_tokens: 4096, stream: false });
     const result = await cfAiRequest(CF_ACCOUNT, CF_TOKEN, body);
     if (!result.success) return res.status(502).json({ error: result.errors?.[0]?.message || 'CF error' });
