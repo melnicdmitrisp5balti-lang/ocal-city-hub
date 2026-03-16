@@ -2760,7 +2760,7 @@ function pgAiAddMessage(role, text, isCode) {
   if (isCode) {
     bubble.innerHTML = `<span style="font-size:11px;color:#a78bfa;font-family:'Syne',sans-serif;font-weight:700">✦ Код обновлён во всех вкладках</span>`;
   } else {
-    bubble.textContent = text;
+    bubble.textContent = typeof text === 'string' ? text : JSON.stringify(text);
   }
 
   div.appendChild(bubble);
@@ -2863,8 +2863,9 @@ async function pgAiSend() {
       aiChatHistory.push({ role: 'assistant', content: '✦ Код обновлён' });
       pgAiAddMessage('assistant', '', true);
     } else {
-      aiChatHistory.push({ role: 'assistant', content: text });
-      pgAiAddMessage('assistant', text, false);
+      const displayText = typeof text === 'string' ? text : JSON.stringify(text);
+      aiChatHistory.push({ role: 'assistant', content: displayText });
+      pgAiAddMessage('assistant', displayText, false);
     }
 
   } catch(e) {

@@ -976,7 +976,11 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
     text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
     text = cleanAiJson(text);
 
+    // Ensure text is always a string (cleanAiJson should guarantee this)
+    if (typeof text !== 'string') text = JSON.stringify(text);
+
     const looksLikeCode = text.trim().startsWith('{') || text.includes('"html"') || text.includes('"css"');
+    console.log('[AI] looksLikeCode:', looksLikeCode, '| text start:', text.slice(0, 60));
     res.json({ text, hasCode: looksLikeCode });
   } catch(e) {
     res.status(500).json({ error: e.message });
