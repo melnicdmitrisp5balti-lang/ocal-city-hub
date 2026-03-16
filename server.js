@@ -850,11 +850,14 @@ app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
-// ── AI Proxy (OpenRouter — бесплатные модели) ────────────────────────────────
+// ── AI Proxy (Cloudflare Workers AI — 10000 запросов/день бесплатно) ──────────
 app.post('/api/ai', requireAuth, async (req, res) => {
   try {
-    const OR_KEY = process.env.OPENROUTER_API_KEY;
-    if (!OR_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте OPENROUTER_API_KEY в переменные окружения.' });
+    const CF_TOKEN = process.env.CF_API_TOKEN;
+    const CF_ACCOUNT = process.env.CF_ACCOUNT_ID;
+    if (!CF_TOKEN || !CF_ACCOUNT) {
+      return res.status(503).json({ error: 'AI не настроен. Добавьте CF_API_TOKEN и CF_ACCOUNT_ID в переменные окружения.' });
+    }
 
     const { prompt } = req.body;
     if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
@@ -864,25 +867,22 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 Требования: современный дизайн, тёмная тема, полностью рабочий код. Только JSON, ничего лишнего.`;
 
     const body = JSON.stringify({
-      model: 'openrouter/auto',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt.trim() }
       ],
-      max_tokens: 8000,
-      temperature: 0.7
+      max_tokens: 4096
     });
 
     const result = await new Promise((resolve, reject) => {
+      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
       const options = {
-        hostname: 'openrouter.ai',
-        path: '/api/v1/chat/completions',
+        hostname: 'api.cloudflare.com',
+        path,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OR_KEY}`,
-          'HTTP-Referer': 'https://starosta-hub.app',
-          'X-Title': 'Starosta Hub',
+          'Authorization': `Bearer ${CF_TOKEN}`,
           'Content-Length': Buffer.byteLength(body)
         }
       };
@@ -899,9 +899,12 @@ app.post('/api/ai', requireAuth, async (req, res) => {
       req2.end();
     });
 
-    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка AI' });
+    if (!result.success) {
+      const errMsg = result.errors?.[0]?.message || 'Ошибка Cloudflare AI';
+      return res.status(502).json({ error: errMsg });
+    }
 
-    const text = result.choices?.[0]?.message?.content || '';
+    const text = result.result?.response || '';
     if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
 
     res.json({ text });
