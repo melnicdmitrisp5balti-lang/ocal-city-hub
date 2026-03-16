@@ -2790,7 +2790,7 @@ async function pgAiSend() {
     document.getElementById('aiTyping')?.remove();
     if (!response.ok) throw new Error(data.error || 'Ошибка сервера');
 
-    const text = data.text || '';
+    const text = String(data.text || '');
     aiChatHistory.push({ role: 'assistant', content: text });
 
     // Check if response contains code (JSON with html/css/js)
@@ -3079,7 +3079,7 @@ async function pgAiGenerate() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Ошибка сервера');
 
-    const text = data.text || '';
+    const text = String(data.text || '');
 
     // Parse JSON response — robust extraction
     let parsed;

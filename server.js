@@ -910,7 +910,7 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
       return res.status(502).json({ error: result.errors?.[0]?.message || 'Ошибка AI' });
     }
 
-    let text = result.result?.response || '';
+    let text = String(result.result?.response || '');
     text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
 
     // Detect if response is JSON (code) or plain text
@@ -981,7 +981,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
       return res.status(502).json({ error: errMsg });
     }
 
-    let text = result.result?.response || '';
+    let text = String(result.result?.response || '');
     if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
 
     // Убираем управляющие символы которые ломают JSON парсинг на клиенте
