@@ -31,6 +31,36 @@ function hashPw(pw) {
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
+
+// ── AI response JSON cleaner ──────────────────────────────────────────────────
+function cleanAiJson(text) {
+  try {
+    const s = text.indexOf('{');
+    const e = text.lastIndexOf('}');
+    if (s === -1 || e <= s) return text;
+    let slice = text.slice(s, e + 1);
+    // Replace literal newlines/carriage returns with escaped versions
+    // We do this character by character inside string context
+    let result = '';
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < slice.length; i++) {
+      const ch = slice[i];
+      if (escape) { result += ch; escape = false; continue; }
+      if (ch === '\\') { result += ch; escape = true; continue; }
+      if (ch === '"') { inString = !inString; result += ch; continue; }
+      if (inString && ch === '\n') { result += '\\n'; continue; }
+      if (inString && ch === '\r') { continue; }
+      if (inString && ch === '\t') { result += '\\t'; continue; }
+      result += ch;
+    }
+    const parsed = JSON.parse(result);
+    return JSON.stringify(parsed);
+  } catch(e2) {
+    return text;
+  }
+}
+
 async function q(sql, args = []) {
   const r = await db.execute({ sql, args });
   return r.rows;
@@ -912,10 +942,9 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
 
     let text = String(result.result?.response || '');
     text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+    text = cleanAiJson(text);
 
-    // Detect if response is JSON (code) or plain text
     const looksLikeCode = text.trim().startsWith('{') || text.includes('"html"') || text.includes('"css"');
-
     res.json({ text, hasCode: looksLikeCode });
   } catch(e) {
     res.status(500).json({ error: e.message });
@@ -983,10 +1012,8 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 
     let text = String(result.result?.response || '');
     if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
-
-    // Убираем управляющие символы которые ломают JSON парсинг на клиенте
     text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
-
+    text = cleanAiJson(text);
     res.json({ text });
   } catch(e) {
     res.status(500).json({ error: e.message });

@@ -2800,13 +2800,26 @@ async function pgAiSend() {
         let clean = String(raw)
           .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
           .replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-        const start = clean.indexOf('{'), end = clean.lastIndexOf('}');
-        if (start === -1 || end <= start) return null;
-        clean = clean.slice(start, end + 1);
-        const parsed = JSON.parse(clean);
-        if (parsed.html !== undefined || parsed.css !== undefined || parsed.js !== undefined) {
-          return parsed;
+        const start2 = clean.indexOf('{'), end2 = clean.lastIndexOf('}');
+        if (start2 === -1 || end2 <= start2) return null;
+        clean = clean.slice(start2, end2 + 1);
+        // Fix literal newlines inside JSON string values char by char
+        let fixed = '';
+        let inStr = false, esc = false;
+        for (let i = 0; i < clean.length; i++) {
+          const c = clean[i];
+          if (esc) { fixed += c; esc = false; continue; }
+          if (c === '\\') { fixed += c; esc = true; continue; }
+          if (c === '"') { inStr = !inStr; fixed += c; continue; }
+          if (inStr && c === '\n') { fixed += '\\n'; continue; }
+          if (inStr && c === '\r') { continue; }
+          if (inStr && c === '\t') { fixed += '\\t'; continue; }
+          fixed += c;
         }
+        // Try direct parse first, then fixed
+        let p;
+        try { p = JSON.parse(clean); } catch(e1) { p = JSON.parse(fixed); }
+        if (p.html !== undefined || p.css !== undefined || p.js !== undefined) return p;
         return null;
       } catch(e) { return null; }
     };
