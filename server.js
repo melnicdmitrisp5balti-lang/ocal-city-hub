@@ -850,6 +850,68 @@ app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
+// ── AI Proxy (Claude API) ─────────────────────────────────────────────────────
+app.post('/api/ai', requireAuth, async (req, res) => {
+  try {
+    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте ANTHROPIC_API_KEY в переменные окружения.' });
+
+    const { prompt } = req.body;
+    if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
+
+    const body = JSON.stringify({
+      model: 'claude-opus-4-5',
+      max_tokens: 4000,
+      system: `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
+Твоя задача: сгенерировать код и вернуть его СТРОГО в JSON формате без markdown, без пояснений, только JSON:
+{"html": "...HTML код...", "css": "...CSS код...", "js": "...JavaScript код..."}
+
+Правила:
+- HTML: только содержимое тега body (без DOCTYPE, html, head, body тегов)
+- CSS: чистый CSS без style тегов
+- JS: чистый JavaScript без script тегов
+- Код должен быть полным, рабочим и красивым
+- Используй современный дизайн: тёмная тема, градиенты, анимации
+- Если просят игру — сделай полноценную игру
+- Если просят калькулятор — сделай красивый функциональный калькулятор
+- ТОЛЬКО JSON, никакого текста до или после`,
+      messages: [{ role: 'user', content: prompt.trim() }]
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      };
+      const req2 = https.request(options, r => {
+        let data = '';
+        r.on('data', chunk => data += chunk);
+        r.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch(e) { reject(new Error('Ошибка парсинга ответа API')); }
+        });
+      });
+      req2.on('error', reject);
+      req2.write(body);
+      req2.end();
+    });
+
+    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка AI' });
+
+    const text = (result.content || []).map(b => b.text || '').join('');
+    res.json({ text });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
