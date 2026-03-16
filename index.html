@@ -36,6 +36,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .orb2{width:500px;height:500px;background:radial-gradient(circle,rgba(45,212,191,.16),transparent);bottom:-100px;right:-80px;animation-duration:26s;animation-delay:-10s}
 .orb3{width:380px;height:380px;background:radial-gradient(circle,rgba(129,140,248,.1),transparent);top:45%;left:55%;animation-duration:16s;animation-delay:-5s}
 @keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,30px) scale(1.1)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(103,232,249,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(103,232,249,.025) 1px,transparent 1px);background-size:52px 52px}
 
 /* Header */
@@ -742,7 +743,36 @@ mark{background:rgba(103,232,249,.2);color:var(--cyan);border-radius:2px;padding
       Очистить
     </button>
     <button id="pgMobileToggle" class="btn btn-cyan btn-xs" onclick="pgToggleMobileView()" style="flex-shrink:0">⇄ Вид</button>
+    <button onclick="openAiPanel()" class="btn btn-xs" style="flex-shrink:0;background:linear-gradient(135deg,rgba(167,139,250,.2),rgba(103,232,249,.15));border-color:rgba(167,139,250,.4);color:#c4b5fd;font-weight:800">
+      <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      ИИ
+    </button>
   </div>
+
+  <!-- AI Panel (slides in above editor) -->
+  <div id="pgAiPanel" style="display:none;border-bottom:1px solid rgba(167,139,250,.25);background:rgba(10,8,20,.98);flex-shrink:0">
+    <div style="padding:12px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#a78bfa,#67e8f9);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="11" height="11" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </div>
+        <span class="syne" style="font-size:12px;font-weight:800;color:#c4b5fd">AI Ассистент</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:2px">· напиши задание на русском или английском</span>
+        <button onclick="closeAiPanel()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--muted)'">×</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <textarea id="pgAiInput" placeholder="Например: сделай калькулятор, или простой сайт-визитку, или игру змейка..." style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(167,139,250,.25);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;resize:none;height:60px;line-height:1.5" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();pgAiGenerate()}"></textarea>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button onclick="pgAiGenerate()" id="pgAiBtn" class="btn btn-xs" style="background:linear-gradient(135deg,rgba(167,139,250,.25),rgba(103,232,249,.15));border-color:rgba(167,139,250,.5);color:#c4b5fd;font-weight:800;height:100%;min-width:64px;justify-content:center">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Создать
+          </button>
+        </div>
+      </div>
+      <div id="pgAiStatus" style="margin-top:8px;font-size:11px;color:var(--muted);min-height:16px"></div>
+    </div>
+  </div>
+
   <div class="pg-body">
     <div id="pgEditorCol" class="pg-editor-col" style="display:flex;flex-direction:column">
       <div class="pg-editor-header">
@@ -2628,6 +2658,111 @@ function animateVoiceWave(vid) {
     spans.forEach((s, idx) => s.classList.toggle('active', idx === i % spans.length));
     i++;
   }, 120);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  AI ASSISTANT (Playground)
+// ══════════════════════════════════════════════════════════════════════════════
+function openAiPanel() {
+  const panel = document.getElementById('pgAiPanel');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    setTimeout(() => document.getElementById('pgAiInput')?.focus(), 100);
+    if (monacoEditor) setTimeout(() => monacoEditor.layout(), 50);
+  }
+}
+
+function closeAiPanel() {
+  const panel = document.getElementById('pgAiPanel');
+  if (panel) panel.style.display = 'none';
+  if (monacoEditor) setTimeout(() => monacoEditor.layout(), 50);
+}
+
+async function pgAiGenerate() {
+  const input = document.getElementById('pgAiInput');
+  const btn = document.getElementById('pgAiBtn');
+  const status = document.getElementById('pgAiStatus');
+  const prompt = input?.value.trim();
+  if (!prompt) { status.textContent = '⚠ Введите задание'; status.style.color = 'var(--rose)'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Генерирую...';
+  status.style.color = 'var(--muted)';
+  status.textContent = '🤖 ИИ думает...';
+
+  try {
+    const systemPrompt = `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
+Твоя задача: сгенерировать код и вернуть его СТРОГО в JSON формате без markdown, без пояснений, только JSON:
+{"html": "...HTML код...", "css": "...CSS код...", "js": "...JavaScript код..."}
+
+Правила:
+- HTML: только содержимое тега <body> (без <!DOCTYPE>, <html>, <head>, <body>)
+- CSS: чистый CSS без <style> тегов
+- JS: чистый JavaScript без <script> тегов
+- Код должен быть полным, рабочим и красивым
+- Используй современный дизайн: тёмная тема, градиенты, анимации
+- Пиши комментарии на русском
+- Если просят игру — сделай полноценную игру
+- Если просят калькулятор — сделай красивый функциональный калькулятор
+- ТОЛЬКО JSON, никакого текста до или после`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'API error');
+
+    const text = data.content?.map(b => b.text || '').join('') || '';
+
+    // Parse JSON response
+    let parsed;
+    try {
+      const clean = text.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      // Try to extract JSON from text
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+      else throw new Error('Не удалось разобрать ответ ИИ');
+    }
+
+    // Insert into editor tabs
+    pgCode.html = parsed.html || '';
+    pgCode.css  = parsed.css  || '';
+    pgCode.js   = parsed.js   || '';
+
+    // Update current editor view
+    if (monacoEditor && monacoReady) {
+      const lang = pgLangMap[pgCurrentTab];
+      const model = monaco.editor.createModel(pgCode[pgCurrentTab], lang);
+      monacoEditor.setModel(model);
+    }
+
+    // Run preview
+    pgRun();
+
+    status.style.color = 'var(--teal)';
+    status.textContent = '✦ Готово! Код вставлен во все вкладки. Проверь превью →';
+    input.value = '';
+
+  } catch(e) {
+    status.style.color = 'var(--rose)';
+    status.textContent = '✕ Ошибка: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Создать';
+  }
 }
 
 
