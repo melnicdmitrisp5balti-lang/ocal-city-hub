@@ -864,12 +864,14 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 
     const systemPrompt = 'Ты эксперт веб-разработчик. Верни ТОЛЬКО JSON без markdown и пояснений: {"html":"...тело страницы без html/head/body тегов...","css":"...чистый css...","js":"...чистый js..."} Требования: современный дизайн, тёмная тема, полностью рабочий код. Только JSON, ничего лишнего.';
 
+    const cleanPrompt = prompt.trim().replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
     const body = JSON.stringify({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt.trim() }
+        { role: 'user', content: cleanPrompt }
       ],
-      max_tokens: 4096
+      max_tokens: 4096,
+      stream: false
     });
 
     const result = await new Promise((resolve, reject) => {
@@ -902,8 +904,11 @@ app.post('/api/ai', requireAuth, async (req, res) => {
       return res.status(502).json({ error: errMsg });
     }
 
-    const text = result.result?.response || '';
+    let text = result.result?.response || '';
     if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
+
+    // Убираем управляющие символы которые ломают JSON парсинг на клиенте
+    text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
 
     res.json({ text });
   } catch(e) {

@@ -2723,13 +2723,17 @@ async function pgAiGenerate() {
     // Parse JSON response
     let parsed;
     try {
-      const clean = text.replace(/```json|```/g, '').trim();
+      // Clean control characters and extract JSON
+      let clean = text
+        .replace(/```json|```/g, '')
+        .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+        .trim();
+      // Extract JSON object if wrapped in extra text
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) clean = match[0];
       parsed = JSON.parse(clean);
     } catch(e) {
-      // Try to extract JSON block from text
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-      else throw new Error('Не удалось разобрать ответ ИИ');
+      throw new Error('ИИ вернул некорректный ответ. Попробуй ещё раз.');
     }
 
     // Insert into editor tabs
