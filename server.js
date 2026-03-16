@@ -864,7 +864,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 Требования: современный дизайн, тёмная тема, полностью рабочий код. Только JSON, ничего лишнего.`;
 
     const body = JSON.stringify({
-      model: 'google/gemma-3-27b-it:free',
+      model: 'openrouter/auto',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt.trim() }
