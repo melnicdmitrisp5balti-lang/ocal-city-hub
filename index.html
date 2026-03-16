@@ -2869,10 +2869,13 @@ async function pgAiSend() {
     document.getElementById('aiTyping')?.remove();
     if (!resp.ok) throw new Error((data && data.error) || 'Ошибка сервера');
 
-    const text = String((data && data.text) ? data.text : '');
+    console.log('[AI] data:', JSON.stringify(data).slice(0, 200));
+    const text = String((data && data.text != null) ? data.text : '');
+    console.log('[AI] text type:', typeof data.text, '| text slice:', text.slice(0, 100));
     if (!text) throw new Error('Пустой ответ от AI');
 
     const parsed = pgAiParseResponse(text);
+    console.log('[AI] parsed:', parsed ? Object.keys(parsed) : null);
 
     if (parsed) {
       pgAiInsertCode(parsed.html, parsed.css, parsed.js);
