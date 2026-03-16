@@ -2793,29 +2793,41 @@ async function pgAiSend() {
     const text = String(data.text || '');
     aiChatHistory.push({ role: 'assistant', content: text });
 
-    // Check if response contains code (JSON with html/css/js)
+    // Always try to parse JSON first, fall back to plain text
     let codeInserted = false;
-    if (data.hasCode) {
+    const tryParseCode = (raw) => {
       try {
-        let clean = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').replace(/```json|```/g,'').trim();
+        let clean = String(raw)
+          .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+          .replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
         const start = clean.indexOf('{'), end = clean.lastIndexOf('}');
-        if (start !== -1 && end > start) clean = clean.slice(start, end+1);
+        if (start === -1 || end <= start) return null;
+        clean = clean.slice(start, end + 1);
         const parsed = JSON.parse(clean);
         if (parsed.html !== undefined || parsed.css !== undefined || parsed.js !== undefined) {
-          // Unescape \n back to real newlines for the editor
-          const unescape = s => (s || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
-          if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
-          if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
-          if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
-          if (monacoEditor && monacoReady) {
-            const model = monaco.editor.createModel(pgCode[pgCurrentTab], pgLangMap[pgCurrentTab]);
-            monacoEditor.setModel(model);
-          }
-          pgRun();
-          codeInserted = true;
-          pgAiAddMessage('assistant', '', true);
+          return parsed;
         }
-      } catch(e) { /* not JSON, show as text */ }
+        return null;
+      } catch(e) { return null; }
+    };
+
+    const parsed = tryParseCode(text);
+    if (parsed) {
+      const unescape = s => String(s || '')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\r/g, '');
+      if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
+      if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
+      if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
+      if (monacoEditor && monacoReady) {
+        const model = monaco.editor.createModel(pgCode[pgCurrentTab], pgLangMap[pgCurrentTab]);
+        monacoEditor.setModel(model);
+      }
+      pgRun();
+      codeInserted = true;
+      pgAiAddMessage('assistant', '', true);
     }
 
     if (!codeInserted) {
@@ -3081,50 +3093,31 @@ async function pgAiGenerate() {
 
     const text = String(data.text || '');
 
-    // Parse JSON response — robust extraction
-    let parsed;
+    // Parse JSON response
+    const unescape = s => String(s || '')
+      .replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"').replace(/\\r/g, '');
+
+    let parsed = null;
     try {
-      // 1. Clean control characters
-      let clean = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').replace(/```json|```/g, '').trim();
-
-      // 2. Find the outermost { ... } block
-      const start = clean.indexOf('{');
-      const end = clean.lastIndexOf('}');
-      if (start !== -1 && end !== -1 && end > start) {
-        clean = clean.slice(start, end + 1);
-      }
-
-      // 3. Fix common AI JSON mistakes:
-      //    - newlines inside string values → \n
-      //    - unescaped quotes inside strings (basic fix)
-      clean = clean.replace(/("(?:html|css|js)"\s*:\s*")([\s\S]*?)("(?:,|\s*\}))/g, (match, p1, p2, p3) => {
-        const fixed = p2
-          .replace(/\\/g, '\\\\')
-          .replace(/\r\n|\n|\r/g, '\\n')
-          .replace(/\t/g, '\\t');
-        return p1 + fixed + p3;
-      });
-
+      let clean = text
+        .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+        .replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}');
+      if (s !== -1 && e2 > s) clean = clean.slice(s, e2 + 1);
       parsed = JSON.parse(clean);
     } catch(e) {
-      // Last resort: try to extract each field manually
-      try {
-        const extract = (key) => {
-          const re = new RegExp('"' + key + '"\\s*:\\s*"([\\s\\S]*?)(?="(?:html|css|js)"\\s*:|\\s*\\}\\s*$)', 'i');
-          const m = text.match(re);
-          return m ? m[1].replace(/\\n/g, '\n') : '';
-        };
-        parsed = { html: extract('html'), css: extract('css'), js: extract('js') };
-        if (!parsed.html && !parsed.css && !parsed.js) throw new Error('empty');
-      } catch(e2) {
-        throw new Error('ИИ вернул некорректный формат. Попробуй переформулировать запрос.');
-      }
+      throw new Error('ИИ вернул некорректный формат. Попробуй ещё раз.');
+    }
+
+    if (!parsed || (parsed.html === undefined && parsed.css === undefined && parsed.js === undefined)) {
+      throw new Error('ИИ не вернул код. Попробуй переформулировать.');
     }
 
     // Insert into editor tabs
-    pgCode.html = parsed.html || '';
-    pgCode.css  = parsed.css  || '';
-    pgCode.js   = parsed.js   || '';
+    pgCode.html = unescape(parsed.html || '');
+    pgCode.css  = unescape(parsed.css  || '');
+    pgCode.js   = unescape(parsed.js   || '');
 
     // Update current editor view
     if (monacoEditor && monacoReady) {
