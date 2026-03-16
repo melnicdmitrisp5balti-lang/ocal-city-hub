@@ -850,44 +850,39 @@ app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
-// ── AI Proxy (Google Gemini — бесплатный) ────────────────────────────────────
+// ── AI Proxy (OpenRouter — бесплатные модели) ────────────────────────────────
 app.post('/api/ai', requireAuth, async (req, res) => {
   try {
-    const GEMINI_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте GEMINI_API_KEY в переменные окружения.' });
+    const OR_KEY = process.env.OPENROUTER_API_KEY;
+    if (!OR_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте OPENROUTER_API_KEY в переменные окружения.' });
 
     const { prompt } = req.body;
     if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
 
-    const systemInstruction = `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
-Твоя задача: сгенерировать код и вернуть его СТРОГО в JSON формате без markdown, без пояснений, только JSON:
-{"html": "...HTML код...", "css": "...CSS код...", "js": "...JavaScript код..."}
-
-Правила:
-- HTML: только содержимое тега body (без DOCTYPE, html, head, body тегов)
-- CSS: чистый CSS без style тегов
-- JS: чистый JavaScript без script тегов
-- Код должен быть полным, рабочим и красивым
-- Используй современный дизайн: тёмная тема, градиенты, анимации
-- Если просят игру — сделай полноценную игру
-- Если просят калькулятор — сделай красивый функциональный калькулятор
-- ТОЛЬКО JSON, никакого текста до или после`;
+    const systemPrompt = `Ты эксперт веб-разработчик. Верни ТОЛЬКО JSON без markdown и пояснений:
+{"html":"...тело страницы без html/head/body тегов...","css":"...чистый css...","js":"...чистый js..."}
+Требования: современный дизайн, тёмная тема, полностью рабочий код. Только JSON, ничего лишнего.`;
 
     const body = JSON.stringify({
-      contents: [{
-        parts: [{ text: systemInstruction + '\n\nЗадание пользователя: ' + prompt.trim() }]
-      }],
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.7 }
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt.trim() }
+      ],
+      max_tokens: 8000,
+      temperature: 0.7
     });
 
     const result = await new Promise((resolve, reject) => {
-      const path = `/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`;
       const options = {
-        hostname: 'generativelanguage.googleapis.com',
-        path,
+        hostname: 'openrouter.ai',
+        path: '/api/v1/chat/completions',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OR_KEY}`,
+          'HTTP-Referer': 'https://starosta-hub.app',
+          'X-Title': 'Starosta Hub',
           'Content-Length': Buffer.byteLength(body)
         }
       };
@@ -896,7 +891,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
         r.on('data', chunk => data += chunk);
         r.on('end', () => {
           try { resolve(JSON.parse(data)); }
-          catch(e) { reject(new Error('Ошибка парсинга ответа API')); }
+          catch(e) { reject(new Error('Ошибка парсинга ответа')); }
         });
       });
       req2.on('error', reject);
@@ -904,9 +899,9 @@ app.post('/api/ai', requireAuth, async (req, res) => {
       req2.end();
     });
 
-    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка Gemini API' });
+    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка AI' });
 
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = result.choices?.[0]?.message?.content || '';
     if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
 
     res.json({ text });
