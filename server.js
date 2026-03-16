@@ -862,7 +862,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
     const { prompt } = req.body;
     if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
 
-    const systemPrompt = 'Ты эксперт веб-разработчик. Верни ТОЛЬКО JSON без markdown и пояснений: {"html":"...тело страницы без html/head/body тегов...","css":"...чистый css...","js":"...чистый js..."} Требования: современный дизайн, тёмная тема, полностью рабочий код. Только JSON, ничего лишнего.';
+    const systemPrompt = 'You are a web developer. Respond ONLY with a single JSON object, no markdown, no explanation, no text before or after. Format: {"html":"body content only","css":"pure css","js":"pure js"}. Requirements: dark theme, modern design, fully working code.';
 
     const cleanPrompt = prompt.trim().replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
     const body = JSON.stringify({

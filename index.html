@@ -2720,20 +2720,44 @@ async function pgAiGenerate() {
 
     const text = data.text || '';
 
-    // Parse JSON response
+    // Parse JSON response — robust extraction
     let parsed;
     try {
-      // Clean control characters and extract JSON
-      let clean = text
-        .replace(/```json|```/g, '')
-        .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
-        .trim();
-      // Extract JSON object if wrapped in extra text
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) clean = match[0];
+      // 1. Clean control characters
+      let clean = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').replace(/```json|```/g, '').trim();
+
+      // 2. Find the outermost { ... } block
+      const start = clean.indexOf('{');
+      const end = clean.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        clean = clean.slice(start, end + 1);
+      }
+
+      // 3. Fix common AI JSON mistakes:
+      //    - newlines inside string values → \n
+      //    - unescaped quotes inside strings (basic fix)
+      clean = clean.replace(/("(?:html|css|js)"\s*:\s*")([\s\S]*?)("(?:,|\s*\}))/g, (match, p1, p2, p3) => {
+        const fixed = p2
+          .replace(/\\/g, '\\\\')
+          .replace(/\r\n|\n|\r/g, '\\n')
+          .replace(/\t/g, '\\t');
+        return p1 + fixed + p3;
+      });
+
       parsed = JSON.parse(clean);
     } catch(e) {
-      throw new Error('ИИ вернул некорректный ответ. Попробуй ещё раз.');
+      // Last resort: try to extract each field manually
+      try {
+        const extract = (key) => {
+          const re = new RegExp('"' + key + '"\\s*:\\s*"([\\s\\S]*?)(?="(?:html|css|js)"\\s*:|\\s*\\}\\s*$)', 'i');
+          const m = text.match(re);
+          return m ? m[1].replace(/\\n/g, '\n') : '';
+        };
+        parsed = { html: extract('html'), css: extract('css'), js: extract('js') };
+        if (!parsed.html && !parsed.css && !parsed.js) throw new Error('empty');
+      } catch(e2) {
+        throw new Error('ИИ вернул некорректный формат. Попробуй переформулировать запрос.');
+      }
     }
 
     // Insert into editor tabs
