@@ -850,19 +850,16 @@ app.get('/api/me', requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
-// ── AI Proxy (Claude API) ─────────────────────────────────────────────────────
+// ── AI Proxy (Google Gemini — бесплатный) ────────────────────────────────────
 app.post('/api/ai', requireAuth, async (req, res) => {
   try {
-    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте ANTHROPIC_API_KEY в переменные окружения.' });
+    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_KEY) return res.status(503).json({ error: 'AI не настроен. Добавьте GEMINI_API_KEY в переменные окружения.' });
 
     const { prompt } = req.body;
     if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
 
-    const body = JSON.stringify({
-      model: 'claude-opus-4-5',
-      max_tokens: 4000,
-      system: `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
+    const systemInstruction = `Ты — эксперт веб-разработчик. Пользователь хочет создать веб-приложение или страницу.
 Твоя задача: сгенерировать код и вернуть его СТРОГО в JSON формате без markdown, без пояснений, только JSON:
 {"html": "...HTML код...", "css": "...CSS код...", "js": "...JavaScript код..."}
 
@@ -874,19 +871,22 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 - Используй современный дизайн: тёмная тема, градиенты, анимации
 - Если просят игру — сделай полноценную игру
 - Если просят калькулятор — сделай красивый функциональный калькулятор
-- ТОЛЬКО JSON, никакого текста до или после`,
-      messages: [{ role: 'user', content: prompt.trim() }]
+- ТОЛЬКО JSON, никакого текста до или после`;
+
+    const body = JSON.stringify({
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ parts: [{ text: prompt.trim() }] }],
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.7 }
     });
 
     const result = await new Promise((resolve, reject) => {
+      const path = `/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
       const options = {
-        hostname: 'api.anthropic.com',
-        path: '/v1/messages',
+        hostname: 'generativelanguage.googleapis.com',
+        path,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
           'Content-Length': Buffer.byteLength(body)
         }
       };
@@ -903,9 +903,11 @@ app.post('/api/ai', requireAuth, async (req, res) => {
       req2.end();
     });
 
-    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка AI' });
+    if (result.error) return res.status(502).json({ error: result.error.message || 'Ошибка Gemini API' });
 
-    const text = (result.content || []).map(b => b.text || '').join('');
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) return res.status(502).json({ error: 'Пустой ответ от AI' });
+
     res.json({ text });
   } catch(e) {
     res.status(500).json({ error: e.message });
