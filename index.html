@@ -2679,34 +2679,131 @@ function animateVoiceWave(vid) {
 // ══════════════════════════════════════════════════════════════════════════════
 //  AI ASSISTANT (Playground)
 // ══════════════════════════════════════════════════════════════════════════════
-function pgAiInsertCode(parsed) {
-  // Values from JSON.parse already have correct characters - no unescaping needed
-  if (parsed.html !== undefined) pgCode.html = String(parsed.html || '');
-  if (parsed.css  !== undefined) pgCode.css  = String(parsed.css  || '');
-  if (parsed.js   !== undefined) pgCode.js   = String(parsed.js   || '');
+// ══════════════════════════════════════════════════════════════════════════════
+//  STAROSTA AI - полностью переписано
+// ══════════════════════════════════════════════════════════════════════════════
+let aiChatHistory = [];
 
-  // Switch to html tab and update editor
+// Вставка кода в редактор
+function pgAiInsertCode(html, css, js) {
+  if (html !== undefined) pgCode.html = html;
+  if (css  !== undefined) pgCode.css  = css;
+  if (js   !== undefined) pgCode.js   = js;
+
+  // Переключаем на HTML вкладку
   pgCurrentTab = 'html';
   ['html','css','js'].forEach(t => {
-    document.getElementById('pgTab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle('active', t === 'html');
+    const btn = document.getElementById('pgTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) btn.classList.toggle('active', t === 'html');
   });
   const lc = pgLangColors['html'];
   const badge = document.getElementById('pgLangLabel');
   if (badge) { badge.textContent = lc.label; badge.style.background = lc.bg; badge.style.color = lc.color; }
 
+  // Обновляем Monaco редактор
   if (monacoEditor && monacoReady) {
-    // Dispose old model and create new one
-    const oldModel = monacoEditor.getModel();
     monacoEditor.setValue(pgCode.html);
-    if (oldModel) {
+    try {
       const newModel = monaco.editor.createModel(pgCode.html, 'html');
       monacoEditor.setModel(newModel);
-      try { oldModel.dispose(); } catch(e) {}
-    }
-    monacoEditor.layout();
+    } catch(e) {}
+    setTimeout(() => monacoEditor.layout(), 50);
   }
-  // Run preview
-  setTimeout(() => pgRun(), 100);
+  // Запускаем превью
+  setTimeout(() => pgRun(), 150);
+}
+
+// Парсинг JSON ответа от AI (защищённый)
+function pgAiParseResponse(text) {
+  if (!text || typeof text !== 'string') return null;
+  try {
+    // Найти JSON блок
+    const s = text.indexOf('{');
+    const e = text.lastIndexOf('}');
+    if (s === -1 || e <= s) return null;
+    let slice = text.slice(s, e + 1);
+
+    // Починить невалидные escape-последовательности посимвольно
+    let out = '';
+    let inStr = false;
+    let i = 0;
+    while (i < slice.length) {
+      const c = slice[i];
+      if (!inStr && c === '"') { inStr = true; out += c; i++; continue; }
+      if (inStr) {
+        if (c === '\\') {
+          const n = slice[i + 1];
+          if (!n) { i++; continue; }
+          if (n === '"')  { out += '\\"';  i += 2; continue; }
+          if (n === '\\') { out += '\\\\'; i += 2; continue; }
+          if (n === 'n')  { out += '\\n';  i += 2; continue; }
+          if (n === 'r')  { out += '\\r';  i += 2; continue; }
+          if (n === 't')  { out += '\\t';  i += 2; continue; }
+          if (n === '/')  { out += '/';    i += 2; continue; }
+          if (n === 'u')  { out += slice.slice(i, i+6); i += 6; continue; }
+          // Любой другой escape (включая \') — просто символ
+          out += n; i += 2; continue;
+        }
+        if (c === '"') { inStr = false; out += c; i++; continue; }
+        // Буквальные управляющие символы внутри строки
+        if (c === '\n') { out += '\\n'; i++; continue; }
+        if (c === '\r') { i++; continue; }
+        if (c === '\t') { out += '\\t'; i++; continue; }
+        out += c; i++; continue;
+      }
+      out += c; i++;
+    }
+
+    const parsed = JSON.parse(out);
+    if (parsed && (parsed.html !== undefined || parsed.css !== undefined || parsed.js !== undefined)) {
+      return parsed;
+    }
+    return null;
+  } catch(e) {
+    return null;
+  }
+}
+
+// Добавить сообщение в чат
+function pgAiAddMessage(role, text, isCode) {
+  const box = document.getElementById('pgAiMessages');
+  if (!box) return;
+
+  const isAi = role === 'assistant';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;' + (isAi ? 'align-items:flex-start' : 'align-items:flex-end');
+
+  const bubble = document.createElement('div');
+  bubble.style.cssText = 'max-width:92%;padding:7px 11px;border-radius:11px;font-size:12px;line-height:1.55;word-break:break-word;' +
+    (isAi
+      ? 'background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.18);color:var(--text);border-bottom-left-radius:3px'
+      : 'background:rgba(103,232,249,.1);border:1px solid rgba(103,232,249,.18);color:var(--text);border-bottom-right-radius:3px');
+
+  if (isCode) {
+    bubble.innerHTML = '<span style="font-size:11px;color:#a78bfa;font-family:\'Syne\',sans-serif;font-weight:700">✦ Код вставлен во все вкладки</span>';
+  } else {
+    bubble.textContent = String(text || '');
+  }
+
+  wrap.appendChild(bubble);
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+}
+
+// Индикатор загрузки
+function pgAiAddTyping() {
+  const box = document.getElementById('pgAiMessages');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.id = 'aiTyping';
+  div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:7px 11px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.12);border-radius:11px;border-bottom-left-radius:3px;width:fit-content';
+  for (let i = 0; i < 3; i++) {
+    const s = document.createElement('span');
+    s.style.cssText = `width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:aiDot 1.2s ease-in-out ${i*0.2}s infinite`;
+    div.appendChild(s);
+  }
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
 }
 
 function openAiPanel() {
@@ -2729,156 +2826,70 @@ function closeAiPanel() {
 function pgAiClearChat() {
   aiChatHistory = [];
   const box = document.getElementById('pgAiMessages');
-  if (box) box.innerHTML = `<div style="text-align:center;padding:16px 0">
-    <div style="font-size:11px;color:var(--muted)">Чат очищен. Начнём заново!</div>
-  </div>`;
+  if (box) box.innerHTML = '<div style="text-align:center;padding:12px;font-size:11px;color:var(--muted)">Чат очищен</div>';
 }
 
 function pgAiQuick(text) {
   const inp = document.getElementById('pgAiInput');
-  if (inp) { inp.value = text; inp.focus(); }
+  if (inp) inp.value = text;
   pgAiSend();
-}
-
-// Chat history for context
-let aiChatHistory = [];
-
-function pgAiAddMessage(role, text, isCode) {
-  const box = document.getElementById('pgAiMessages');
-  if (!box) return;
-  const isAi = role === 'assistant';
-  const div = document.createElement('div');
-  div.style.cssText = `display:flex;flex-direction:column;gap:3px;align-items:${isAi ? 'flex-start' : 'flex-end'}`;
-
-  const bubble = document.createElement('div');
-  bubble.style.cssText = `max-width:90%;padding:8px 11px;border-radius:11px;font-size:12px;line-height:1.6;word-break:break-word;${
-    isAi
-      ? 'background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);color:var(--text);border-bottom-left-radius:3px'
-      : 'background:rgba(103,232,249,.1);border:1px solid rgba(103,232,249,.2);color:var(--text);border-bottom-right-radius:3px'
-  }`;
-
-  if (isCode) {
-    bubble.innerHTML = `<span style="font-size:11px;color:#a78bfa;font-family:'Syne',sans-serif;font-weight:700">✦ Код обновлён во всех вкладках</span>`;
-  } else {
-    bubble.textContent = typeof text === 'string' ? text : JSON.stringify(text);
-  }
-
-  div.appendChild(bubble);
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-function pgAiAddTyping() {
-  const box = document.getElementById('pgAiMessages');
-  if (!box) return;
-  const div = document.createElement('div');
-  div.id = 'aiTyping';
-  div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:8px 11px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.15);border-radius:11px;border-bottom-left-radius:3px;width:fit-content';
-  div.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:aiDot 1.2s ease-in-out infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:aiDot 1.2s ease-in-out .2s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:aiDot 1.2s ease-in-out .4s infinite"></span>';
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
 }
 
 async function pgAiSend() {
   const input = document.getElementById('pgAiInput');
-  const btn = document.getElementById('pgAiBtn');
-  const userMsg = input?.value.trim();
-  if (!userMsg || btn.disabled) return;
+  const btn   = document.getElementById('pgAiBtn');
+  const msg   = input?.value.trim();
+  if (!msg || btn?.disabled) return;
 
   input.value = '';
   input.style.height = '38px';
+  pgAiAddMessage('user', msg, false);
 
-  // Show user message
-  pgAiAddMessage('user', userMsg, false);
-
-  // Get current code context
+  // Контекст кода
   if (monacoEditor) pgCode[pgCurrentTab] = monacoEditor.getValue();
-  const codeContext = `[HTML]:\n${pgCode.html}\n\n[CSS]:\n${pgCode.css}\n\n[JS]:\n${pgCode.js}`;
-  const hasCode = pgCode.html || pgCode.css || pgCode.js;
+  const hasCode = !!(pgCode.html || pgCode.css || pgCode.js);
+  const codeCtx = hasCode
+    ? `Current code:\n[HTML]\n${pgCode.html}\n[CSS]\n${pgCode.css}\n[JS]\n${pgCode.js}\n\nUser request: `
+    : '';
 
-  // Build prompt with code context
-  const fullPrompt = hasCode
-    ? `Текущий код в редакторе:\n${codeContext}\n\nЗапрос пользователя: ${userMsg}`
-    : userMsg;
+  aiChatHistory.push({ role: 'user', content: codeCtx + msg });
+  if (aiChatHistory.length > 8) aiChatHistory = aiChatHistory.slice(-8);
 
-  // Add to history
-  aiChatHistory.push({ role: 'user', content: fullPrompt });
-  // Keep last 6 messages for context
-  if (aiChatHistory.length > 6) aiChatHistory = aiChatHistory.slice(-6);
-
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   pgAiAddTyping();
 
   try {
-    const response = await fetch('/api/ai-chat', {
+    const resp = await fetch('/api/ai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-token': token || '' },
       body: JSON.stringify({ messages: aiChatHistory, hasCode })
     });
-
-    const data = await response.json();
+    const data = await resp.json();
     document.getElementById('aiTyping')?.remove();
-    if (!response.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!resp.ok) throw new Error(data.error || 'Ошибка сервера');
 
     const text = String(data.text || '');
-
-    // Try to parse as code JSON first
-    let parsed = null;
-    try {
-      let clean = text.replace(/```json|```/g, '').trim();
-      const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}');
-      if (s !== -1 && e2 > s) {
-        clean = clean.slice(s, e2 + 1);
-        // Fix invalid escapes (e.g. \' is invalid in JSON)
-        let fixed = '';
-        let inStr = false, i = 0;
-        while (i < clean.length) {
-          const c = clean[i];
-          if (c === '"' && !inStr) { inStr = true; fixed += c; i++; continue; }
-          if (inStr) {
-            if (c === '\\') {
-              const n = clean[i+1];
-              const valid = 'ntrb\\/"\'f'.includes(n) || n === 'u';
-              if (valid && n !== "'") { fixed += c + n; i += 2; continue; }
-              // Invalid escape - just output the char
-              fixed += n; i += 2; continue;
-            }
-            if (c === '"') { inStr = false; fixed += c; i++; continue; }
-            if (c === '\n') { fixed += '\\n'; i++; continue; }
-            if (c === '\r') { i++; continue; }
-            if (c === '\t') { fixed += '\\t'; i++; continue; }
-            fixed += c; i++; continue;
-          }
-          fixed += c; i++;
-        }
-        parsed = JSON.parse(fixed);
-        if (parsed.html === undefined && parsed.css === undefined && parsed.js === undefined) {
-          parsed = null;
-        }
-      }
-    } catch(e) { parsed = null; }
+    const parsed = pgAiParseResponse(text);
 
     if (parsed) {
-      pgAiInsertCode(parsed);
-      aiChatHistory.push({ role: 'assistant', content: '✦ Код обновлён' });
+      pgAiInsertCode(parsed.html, parsed.css, parsed.js);
+      aiChatHistory.push({ role: 'assistant', content: '(code updated)' });
       pgAiAddMessage('assistant', '', true);
     } else {
-      const displayText = typeof text === 'string' ? text : JSON.stringify(text);
-      aiChatHistory.push({ role: 'assistant', content: displayText });
-      pgAiAddMessage('assistant', displayText, false);
+      aiChatHistory.push({ role: 'assistant', content: text });
+      pgAiAddMessage('assistant', text, false);
     }
-
   } catch(e) {
     document.getElementById('aiTyping')?.remove();
-    pgAiAddMessage('assistant', '✕ Ошибка: ' + e.message, false);
+    pgAiAddMessage('assistant', '✕ ' + e.message, false);
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
     document.getElementById('pgAiInput')?.focus();
   }
 }
 
-// Legacy function kept for compatibility
 async function pgAiGenerate() { pgAiSend(); }
+
 
 // Init socket handlers for chat
 if (typeof socket !== 'undefined' && socket) {
