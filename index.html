@@ -2802,9 +2802,11 @@ async function pgAiSend() {
         if (start !== -1 && end > start) clean = clean.slice(start, end+1);
         const parsed = JSON.parse(clean);
         if (parsed.html !== undefined || parsed.css !== undefined || parsed.js !== undefined) {
-          pgCode.html = parsed.html || pgCode.html;
-          pgCode.css  = parsed.css  || pgCode.css;
-          pgCode.js   = parsed.js   || pgCode.js;
+          // Unescape \n back to real newlines for the editor
+          const unescape = s => (s || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
+          if (parsed.html !== undefined) pgCode.html = unescape(parsed.html);
+          if (parsed.css  !== undefined) pgCode.css  = unescape(parsed.css);
+          if (parsed.js   !== undefined) pgCode.js   = unescape(parsed.js);
           if (monacoEditor && monacoReady) {
             const model = monaco.editor.createModel(pgCode[pgCurrentTab], pgLangMap[pgCurrentTab]);
             monacoEditor.setModel(model);

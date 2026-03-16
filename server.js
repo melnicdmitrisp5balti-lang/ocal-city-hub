@@ -859,13 +859,15 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
 
     // System prompt depends on whether there's code context
     const systemPrompt = hasCode
-      ? 'You are an expert web developer assistant. The user will share their current HTML/CSS/JS code. ' +
-        'If they ask to create, modify, fix, or improve code — respond ONLY with a JSON object: {"html":"...","css":"...","js":"..."}. ' +
-        'If they ask a question or want an explanation — respond in plain text (Russian). ' +
-        'For code responses: include ALL code (not just changes), keep existing functionality, improve design. ' +
-        'NEVER use markdown code blocks in JSON values. Escape newlines as \n.'
-      : 'You are an expert web developer. When asked to create something — respond ONLY with JSON: {"html":"...","css":"...","js":"..."}. ' +
-        'For questions — answer in plain text (Russian). No markdown blocks in JSON values. Escape newlines as \n.';
+      ? 'You are an expert web developer. The user shares their current code. ' +
+        'For ANY code task (create/modify/fix/improve/add feature): respond with ONLY a raw JSON object, zero other text. ' +
+        'Format: {"html":"...","css":"...","js":"..."} ' +
+        'CRITICAL JSON rules: 1) Each value is a complete valid string. 2) Replace actual newlines with the two chars backslash-n. 3) Escape double quotes inside values as backslash-quote. 4) Write complete updated code, not diffs. 5) NO markdown, NO explanation outside JSON. ' +
+        'For questions only (no code changes needed): answer in Russian plain text.'
+      : 'You are an expert web developer. ' +
+        'For code tasks: respond with ONLY raw JSON {"html":"...","css":"...","js":"..."}. ' +
+        'CRITICAL: escape newlines as \\n, escape double quotes as \\". No markdown. Complete working code. Dark modern design. ' +
+        'For questions: answer in plain Russian.';
 
     // Build messages for Cloudflare (no system role support, prepend to first message)
     const cfMessages = messages.map((m, i) => ({
@@ -880,7 +882,7 @@ app.post('/api/ai-chat', requireAuth, async (req, res) => {
     });
 
     const result = await new Promise((resolve, reject) => {
-      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
+      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast`;
       const options = {
         hostname: 'api.cloudflare.com',
         path,
@@ -937,7 +939,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
     const { prompt } = req.body;
     if (!prompt?.trim()) return res.status(400).json({ error: 'Пустой запрос' });
 
-    const systemPrompt = 'You are a web developer. Respond ONLY with a single JSON object, no markdown, no explanation, no text before or after. Format: {"html":"body content only","css":"pure css","js":"pure js"}. Requirements: dark theme, modern design, fully working code.';
+    const systemPrompt = 'You are an expert web developer. You MUST respond with ONLY a valid JSON object. No text before or after. No markdown. Format exactly: {"html":"<content here>","css":"css here","js":"js here"}. Rules: HTML is body content only (no html/head/body tags). Separate HTML structure, CSS styles, and JS logic into their respective fields. Use proper indentation escaped as \\n. Create beautiful, fully working code with dark theme.';
 
     const cleanPrompt = prompt.trim().replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
     const body = JSON.stringify({
@@ -950,7 +952,7 @@ app.post('/api/ai', requireAuth, async (req, res) => {
     });
 
     const result = await new Promise((resolve, reject) => {
-      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
+      const path = `/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast`;
       const options = {
         hostname: 'api.cloudflare.com',
         path,
