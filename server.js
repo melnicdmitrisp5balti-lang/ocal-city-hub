@@ -874,8 +874,9 @@ app.post('/api/ai', requireAuth, async (req, res) => {
 - ТОЛЬКО JSON, никакого текста до или после`;
 
     const body = JSON.stringify({
-      system_instruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ parts: [{ text: prompt.trim() }] }],
+      contents: [{
+        parts: [{ text: systemInstruction + '\n\nЗадание пользователя: ' + prompt.trim() }]
+      }],
       generationConfig: { maxOutputTokens: 8192, temperature: 0.7 }
     });
 
